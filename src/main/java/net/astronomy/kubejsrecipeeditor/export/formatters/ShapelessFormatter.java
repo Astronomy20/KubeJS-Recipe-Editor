@@ -1,10 +1,10 @@
-package net.astronomy.jeikubejsexporter.export.formatters;
+package net.astronomy.kubejsrecipeeditor.export.formatters;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
-import net.astronomy.jeikubejsexporter.export.IngredientFormatter;
+import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 
 public class ShapelessFormatter {
 

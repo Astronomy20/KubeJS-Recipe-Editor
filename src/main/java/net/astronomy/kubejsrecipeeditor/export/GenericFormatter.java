@@ -1,4 +1,4 @@
-package net.astronomy.jeikubejsexporter.export;
+package net.astronomy.kubejsrecipeeditor.export;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -11,7 +11,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeSerializer;
-import net.astronomy.jeikubejsexporter.JeiKubeJsExporter;
+import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 
 public class GenericFormatter {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -30,7 +30,7 @@ public class GenericFormatter {
             sb.append("    event.custom(").append(indented).append(")");
             return sb.toString();
         } catch (Exception e) {
-            JeiKubeJsExporter.LOGGER.error("Failed to encode recipe {}: {}", holder.id(), e.getMessage());
+            KubeJsRecipeEditor.LOGGER.error("Failed to encode recipe {}: {}", holder.id(), e.getMessage());
             return "    // ERROR: " + e.getMessage().replace("\n", " ");
         }
     }

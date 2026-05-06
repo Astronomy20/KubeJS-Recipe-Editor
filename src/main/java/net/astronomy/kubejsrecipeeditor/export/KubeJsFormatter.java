@@ -1,8 +1,8 @@
-package net.astronomy.jeikubejsexporter.export;
+package net.astronomy.kubejsrecipeeditor.export;
 
 import com.google.gson.JsonElement;
 import net.minecraft.world.item.crafting.*;
-import net.astronomy.jeikubejsexporter.export.formatters.*;
+import net.astronomy.kubejsrecipeeditor.export.formatters.*;
 
 public class KubeJsFormatter {
 

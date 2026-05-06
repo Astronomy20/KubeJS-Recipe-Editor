@@ -1,11 +1,11 @@
-package net.astronomy.jeikubejsexporter.export.formatters;
+package net.astronomy.kubejsrecipeeditor.export.formatters;
 
 import com.mojang.serialization.JsonOps;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapedRecipe;
-import net.astronomy.jeikubejsexporter.export.IngredientFormatter;
+import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

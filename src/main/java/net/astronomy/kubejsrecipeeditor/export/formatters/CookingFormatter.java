@@ -1,8 +1,8 @@
-package net.astronomy.jeikubejsexporter.export.formatters;
+package net.astronomy.kubejsrecipeeditor.export.formatters;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.crafting.*;
-import net.astronomy.jeikubejsexporter.export.IngredientFormatter;
+import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 
 public class CookingFormatter {
 

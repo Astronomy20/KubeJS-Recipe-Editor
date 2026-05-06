@@ -1,4 +1,4 @@
-package net.astronomy.jeikubejsexporter.export;
+package net.astronomy.kubejsrecipeeditor.export;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.astronomy.jeikubejsexporter.JeiKubeJsExporter;
+import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 
 public class IngredientFormatter {
 
@@ -18,7 +18,7 @@ public class IngredientFormatter {
             JsonElement json = Ingredient.CODEC.encodeStart(JsonOps.INSTANCE, ingredient).getOrThrow();
             return jsonToKubeJs(json);
         } catch (Exception e) {
-            JeiKubeJsExporter.LOGGER.warn("Ingredient codec failed, using fallback: {}", e.getMessage());
+            KubeJsRecipeEditor.LOGGER.warn("Ingredient codec failed, using fallback: {}", e.getMessage());
             return fallbackFromItems(ingredient);
         }
     }

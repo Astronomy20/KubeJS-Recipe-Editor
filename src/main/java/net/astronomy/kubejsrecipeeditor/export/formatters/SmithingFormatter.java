@@ -1,12 +1,12 @@
-package net.astronomy.jeikubejsexporter.export.formatters;
+package net.astronomy.kubejsrecipeeditor.export.formatters;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
-import net.astronomy.jeikubejsexporter.export.GenericFormatter;
-import net.astronomy.jeikubejsexporter.export.IngredientFormatter;
+import net.astronomy.kubejsrecipeeditor.export.GenericFormatter;
+import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 
 public class SmithingFormatter {
 

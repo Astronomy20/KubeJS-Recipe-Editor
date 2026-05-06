@@ -1,4 +1,4 @@
-package net.astronomy.jeikubejsexporter;
+package net.astronomy.kubejsrecipeeditor;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -8,13 +8,13 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
 
-@EventBusSubscriber(modid = JeiKubeJsExporter.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = KubeJsRecipeEditor.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientSetup {
     public static final KeyMapping OPEN_EXPORTER_KEY = new KeyMapping(
-            "key.jeikubejsexporter.open_exporter",
+            "key.kubejsrecipeeditor.open_editor",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_J,
-            "key.categories.jeikubejsexporter"
+            "key.categories.kubejsrecipeeditor"
     );
 
     @SubscribeEvent
