@@ -5,19 +5,28 @@ import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.gui.handlers.IGuiContainerHandler;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 import net.astronomy.kubejsrecipeeditor.gui.RecipeBuilderScreen;
+import net.astronomy.kubejsrecipeeditor.gui.RecipeTemplate;
+import net.astronomy.kubejsrecipeeditor.gui.RecipeTemplateRegistry;
 import net.astronomy.kubejsrecipeeditor.gui.SlotData;
 import net.astronomy.kubejsrecipeeditor.gui.TagEditorScreen;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @JeiPlugin
 public class JeiIntegration implements IModPlugin {
@@ -32,12 +41,85 @@ public class JeiIntegration implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime runtime) {
         jeiRuntime = runtime;
-        KubeJsRecipeEditor.LOGGER.debug("JEI runtime available");
+        populateRecipeTemplates(runtime);
+        KubeJsRecipeEditor.LOGGER.debug("JEI runtime available; recipe templates registered: {}", RecipeTemplateRegistry.INSTANCE.all().size());
     }
 
     @Override
     public void onRuntimeUnavailable() {
+        RecipeTemplateRegistry.INSTANCE.clear();
         jeiRuntime = null;
+    }
+
+    /**
+     * Captures slot positions from each JEI category via {@link SlotCapturingLayoutBuilder}
+     * and stores drawable backgrounds for pixel-aligned recipe builder GUIs.
+     */
+    private static void populateRecipeTemplates(IJeiRuntime runtime) {
+        RecipeTemplateRegistry.INSTANCE.clear();
+        IRecipeManager recipeManager = runtime.getRecipeManager();
+        IFocusGroup emptyFocus = runtime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
+
+        recipeManager.createRecipeCategoryLookup().get().forEach(categoryObj -> {
+            try {
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                IRecipeCategory<?> rawCat = categoryObj;
+                registerCategoryUnchecked(rawCat, recipeManager, emptyFocus);
+            } catch (Exception ex) {
+                KubeJsRecipeEditor.LOGGER.debug("Skipping recipe template: {}", ex.getMessage());
+            }
+        });
+    }
+
+    @SuppressWarnings("removal")
+    private static void registerCategoryUnchecked(
+            @SuppressWarnings("rawtypes") IRecipeCategory category,
+            IRecipeManager mgr,
+            IFocusGroup emptyFocus) {
+
+        RecipeType<Object> type = category.getRecipeType();
+        Optional<Object> example = pickExampleRecipe(type, mgr);
+        if (example.isEmpty()) {
+            return;
+        }
+
+        List<SlotCapturingLayoutBuilder.CapturedSlot> captured = SlotCapturingLayoutBuilder.capture(
+                category,
+                example.get(),
+                emptyFocus);
+
+        if (captured.isEmpty()) {
+            return;
+        }
+
+        RecipeTemplate registryEntry = new RecipeTemplate(
+                type,
+                category.getTitle().getString(),
+                category.getBackground(),
+                category.getIcon(),
+                captured,
+                example.get());
+
+        RecipeTemplateRegistry.INSTANCE.register(registryEntry);
+    }
+
+    /** Prefer a shaped grid for vanilla crafting categories so captured slots match distinct positions. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Optional<Object> pickExampleRecipe(RecipeType<?> rawType, IRecipeManager mgr) {
+        RecipeType<Object> type = (RecipeType<Object>) rawType;
+        final String typeUid = rawType.getUid().toString();
+        Optional<Object> filtered = mgr.createRecipeLookup(type)
+                .get()
+                .filter(r -> {
+                    if ("minecraft:crafting".equals(typeUid) || "crafting".equals(typeUid)) {
+                        return (r instanceof RecipeHolder<?> holder)
+                                && holder.value() instanceof ShapedRecipe;
+                    }
+                    return true;
+                })
+                .findFirst();
+
+        return filtered.or(() -> mgr.createRecipeLookup(type).get().findFirst());
     }
 
     @Override

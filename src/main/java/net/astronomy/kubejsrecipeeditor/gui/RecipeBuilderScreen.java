@@ -1,11 +1,9 @@
 package net.astronomy.kubejsrecipeeditor.gui;
 
-import mezz.jei.api.gui.IRecipeLayoutDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.recipe.IFocusGroup;
+import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.api.runtime.IJeiRuntime;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -18,30 +16,39 @@ import net.minecraft.world.item.ItemStack;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 import net.astronomy.kubejsrecipeeditor.jei.JeiIntegration;
+import net.astronomy.kubejsrecipeeditor.jei.SlotCapturingLayoutBuilder;
+
+import javax.annotation.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 
 public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMenu> {
+    /** Vanilla GUI atlas sprite — same frame as inventory/crafting slots (empty slot, no items). */
+    private static final ResourceLocation VANILLA_SLOT_SPRITE =
+            ResourceLocation.withDefaultNamespace("container/slot");
+
+    /** Panel fill behind JEI art (visible through transparency; replaces flat black when no texture). */
+    private static final int RECIPE_PANEL_BASE_COLOR = 0xFFC6C6C6;
+
     private static final int TOP_BAR      = 24;
     private static final int BOTTOM_BAR   = 28;
     private static final int PADDING      = 8;
     private static final int EXTRA_FIELD_H = 22; // extra row for composting/fuel fields
 
+    /** JEI recipe cell step for crafting-grid inference */
+    private static final int CRAFT_CELL = 18;
+
     private final IRecipeCategory<?> category;
+    private final @Nullable RecipeTemplate capturedLayout;
     private final boolean isCompostingCategory;
     private final boolean isFuelCategory;
 
-    private final List<SlotData> slots        = new ArrayList<>();
-    private final List<int[]>    allSlotCovers = new ArrayList<>();
-    private IRecipeLayoutDrawable<?> templateLayout;
+    private final List<SlotData> slots = new ArrayList<>();
 
     private int recipeX, recipeY;
     private String statusMessage = "";
@@ -66,12 +73,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     public RecipeBuilderScreen(RecipeBuilderMenu menu, Inventory inventory, IRecipeCategory<?> category) {
         super(menu, inventory, Component.literal(category.getTitle().getString()));
         this.category = category;
+        this.capturedLayout = RecipeTemplateRegistry.INSTANCE.get(category.getRecipeType()).orElse(null);
         this.isCompostingCategory = detectComposting(category);
         this.isFuelCategory       = detectFuel(category);
 
+        int bgW = recipePanelBgWidth();
+        int bgH = recipePanelBgHeight();
         boolean hasExtra = isCompostingCategory || isFuelCategory;
-        this.imageWidth  = Math.max(240, category.getWidth() + PADDING * 2);
-        this.imageHeight = TOP_BAR + PADDING + category.getHeight() + PADDING
+        this.imageWidth  = Math.max(240, bgW + PADDING * 2);
+        this.imageHeight = TOP_BAR + PADDING + bgH + PADDING
                 + (hasExtra ? EXTRA_FIELD_H : 10) + BOTTOM_BAR;
     }
 
@@ -94,19 +104,69 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Prefer the live JEI category drawable (same as in-game JEI); fall back to the captured template.
+     */
+    @SuppressWarnings("removal")
+    private @Nullable IDrawable resolveDrawableBackground() {
+        IDrawable live = category.getBackground();
+        if (live != null) {
+            return live;
+        }
+        if (capturedLayout != null) {
+            return capturedLayout.background();
+        }
+        return null;
+    }
+
+    @SuppressWarnings("removal")
+    private @Nullable IDrawable resolveDrawableIcon() {
+        if (capturedLayout != null && capturedLayout.icon() != null) {
+            return capturedLayout.icon();
+        }
+        return category.getIcon();
+    }
+
+    private int recipePanelBgWidth() {
+        IDrawable bg = resolveDrawableBackground();
+        if (bg != null) {
+            return bg.getWidth();
+        }
+        return category.getWidth();
+    }
+
+    private int recipePanelBgHeight() {
+        IDrawable bg = resolveDrawableBackground();
+        if (bg != null) {
+            return bg.getHeight();
+        }
+        return category.getHeight();
+    }
+
+    /** True when exporting uses shaped / shapeless crafting and slot positions form a grid. */
+    private boolean usesCraftingInputGrid() {
+        ResourceLocation uid = category.getRecipeType().getUid();
+        if (!"minecraft".equals(uid.getNamespace())) return false;
+        String path = uid.getPath();
+        return "crafting".equals(path)
+                || "crafting_shaped".equals(path)
+                || "crafting_shapeless".equals(path);
+    }
+
     @Override
     protected void init() {
         super.init();
         slots.clear();
-        allSlotCovers.clear();
-        templateLayout = null;
+        statusMessage  = "";
+        statusColor    = 0xFFFFFF;
         activePopup    = null;
         resetDrag();
 
-        recipeX = leftPos + (imageWidth - category.getWidth()) / 2;
+        int cw = recipePanelBgWidth();
+        recipeX = leftPos + (imageWidth - cw) / 2;
         recipeY = topPos  + TOP_BAR + PADDING;
 
-        buildSlotsFromJei();
+        buildSlotsFromCapture();
 
         // Home button
         addRenderableWidget(Button.builder(Component.literal("⌂"), btn -> goHome())
@@ -114,7 +174,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         // Extra field buttons for composting / fuel (shift-click = step 10)
         if (isCompostingCategory || isFuelCategory) {
-            int fy = topPos + TOP_BAR + PADDING + category.getHeight() + PADDING + 4;
+            int fy = topPos + TOP_BAR + PADDING + recipePanelBgHeight() + PADDING + 4;
             int cx = leftPos + imageWidth / 2;
             addRenderableWidget(Button.builder(Component.literal("-"),
                             btn -> decrementField(Screen.hasShiftDown()))
@@ -143,78 +203,40 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         if (isFuelCategory)       fuelBurnSecs    = Math.min(1638, fuelBurnSecs    + step);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private void buildSlotsFromJei() {
-        IJeiRuntime runtime = JeiIntegration.getRuntime();
-        if (runtime == null) return;
-        try {
-            IFocusGroup emptyFocus = runtime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
-            final String typeUid = category.getRecipeType().getUid().toString();
-            Optional template = runtime.getRecipeManager()
-                    .createRecipeLookup((mezz.jei.api.recipe.RecipeType) category.getRecipeType())
-                    .get()
-                    .filter(r -> {
-                        // For crafting, prefer ShapedRecipe so slots are at distinct grid positions
-                        if ("minecraft:crafting".equals(typeUid) || "crafting".equals(typeUid)) {
-                            return (r instanceof net.minecraft.world.item.crafting.RecipeHolder<?> h)
-                                    && h.value() instanceof net.minecraft.world.item.crafting.ShapedRecipe;
-                        }
-                        return true;
-                    })
-                    .findFirst()
-                    .or(() -> runtime.getRecipeManager()
-                            .createRecipeLookup((mezz.jei.api.recipe.RecipeType) category.getRecipeType())
-                            .get().findFirst());
-            if (template.isEmpty()) return;
-
-            Optional layoutOpt = runtime.getRecipeManager()
-                    .createRecipeLayoutDrawable((IRecipeCategory) category, template.get(), emptyFocus);
-            if (layoutOpt.isEmpty()) return;
-
-            IRecipeLayoutDrawable layout = (IRecipeLayoutDrawable) layoutOpt.get();
-            layout.setPosition(recipeX, recipeY);
-            templateLayout = layout;
-
-            var slotViews = layout.getRecipeSlotsView().getSlotViews();
-            KubeJsRecipeEditor.LOGGER.info("[RecipeBuilder] recipeX={} recipeY={} slotViews={}",
-                    recipeX, recipeY, slotViews.size());
-
-            Set<Long> seenPos = new HashSet<>();
-            int idx = 0;
-            for (var slotView : slotViews) {
-                if (!(slotView instanceof IRecipeSlotDrawable slotDrawable)) continue;
-
-                RecipeIngredientRole role = slotDrawable.getRole();
-                var rect = slotDrawable.getAreaIncludingBackground();
-                int absX = recipeX + rect.getX();
-                int absY = recipeY + rect.getY();
-
-                // Deduplicate cycling-ingredient views that share the same screen position
-                long posKey = ((long) absX << 32) | (absY & 0xFFFFFFFFL);
-                if (!seenPos.add(posKey)) continue;
-
-                // Normalize to 18×18 centered within any compound area
-                int normX = absX + Math.max(0, (rect.getWidth()  - 18) / 2);
-                int normY = absY + Math.max(0, (rect.getHeight() - 18) / 2);
-
-                if (idx < 4) KubeJsRecipeEditor.LOGGER.info(
-                        "[RecipeBuilder] slot[{}] role={} local=({},{}) size=({},{}) norm=({},{})",
-                        idx, role, rect.getX(), rect.getY(), rect.getWidth(), rect.getHeight(), normX, normY);
-                idx++;
-
-                // RENDER_ONLY slots are illustrative (fuel flames, XP bars) — no cover, no interaction
-                if (role == RecipeIngredientRole.RENDER_ONLY) continue;
-
-                allSlotCovers.add(new int[]{normX, normY});
-
-                // +1 compensates for JEI's -1px border offset in local coords
-                int row = (rect.getY() + 1) / 18;
-                int col = (rect.getX() + 1) / 18;
-                slots.add(new SlotData(normX, normY, 18, 18, role, row, col));
+    private void buildSlotsFromCapture() {
+        if (capturedLayout == null) {
+            if (JeiIntegration.isRuntimeAvailable()) {
+                statusMessage = "Layout unavailable — try Resources Reload (F3+T)";
+                statusColor = 0xFFFFAA55;
             }
-            KubeJsRecipeEditor.LOGGER.info("[RecipeBuilder] interactive={} covers={}", slots.size(), allSlotCovers.size());
-        } catch (Exception e) {
-            KubeJsRecipeEditor.LOGGER.error("Failed to build slots for {}: {}", category.getRecipeType().getUid(), e.getMessage());
+            KubeJsRecipeEditor.LOGGER.debug("No captured layout for {}", category.getRecipeType().getUid());
+            return;
+        }
+
+        statusMessage = "";
+        statusColor   = 0xFFFFFF;
+
+        List<SlotCapturingLayoutBuilder.CapturedSlot> caps = capturedLayout.slots();
+        List<SlotCapturingLayoutBuilder.CapturedSlot> inputCaps = caps.stream()
+                .filter(s -> s.role() == RecipeIngredientRole.INPUT)
+                .toList();
+
+        int minInputX = inputCaps.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
+        int minInputY = inputCaps.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
+        boolean inferCraftingGrid = usesCraftingInputGrid() && !inputCaps.isEmpty();
+
+        for (SlotCapturingLayoutBuilder.CapturedSlot cap : caps) {
+            int absX = recipeX + cap.x();
+            int absY = recipeY + cap.y();
+            int row = 0;
+            int col = 0;
+            if (inferCraftingGrid && cap.role() == RecipeIngredientRole.INPUT) {
+                int dx = cap.x() - minInputX;
+                int dy = cap.y() - minInputY;
+                col = Math.max(0, (dx + CRAFT_CELL / 2) / CRAFT_CELL);
+                row = Math.max(0, (dy + CRAFT_CELL / 2) / CRAFT_CELL);
+            }
+            slots.add(new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col));
         }
     }
 
@@ -233,14 +255,49 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         g.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xFF1E1E1E);
         g.fill(leftPos, topPos, leftPos + imageWidth, topPos + TOP_BAR, 0xFF2D2D2D);
 
-        // JEI recipe template background + decorative items
-        if (templateLayout != null) {
-            try { templateLayout.drawRecipe(g, mouseX, mouseY); } catch (Exception ignored) {}
-        }
+        int pw = recipePanelBgWidth();
+        int ph = recipePanelBgHeight();
+        g.fill(recipeX, recipeY, recipeX + pw, recipeY + ph, RECIPE_PANEL_BASE_COLOR);
 
-        // Slot covers (18×18, only for interactive slots)
-        for (int[] r : allSlotCovers) {
-            g.fill(r[0], r[1], r[0] + 18, r[1] + 18, 0xFF3C3C3C);
+        // JEI category background texture only (no setRecipe / ghost ingredients / animated progress).
+        IDrawable jeiBg = resolveDrawableBackground();
+        if (jeiBg != null) {
+            try {
+                jeiBg.draw(g, recipeX, recipeY);
+            } catch (Exception ignored) {}
+        }
+        
+        // Draw dynamic recipe UI elements (arrows, flames, progress bars)
+        if (capturedLayout != null && capturedLayout.exampleRecipe() != null) {
+            try {
+                @SuppressWarnings("unchecked")
+                IRecipeCategory<Object> rawCat = (IRecipeCategory<Object>) category;
+                
+                IRecipeSlotsView dummyView = (IRecipeSlotsView) java.lang.reflect.Proxy.newProxyInstance(
+                        IRecipeSlotsView.class.getClassLoader(),
+                        new Class<?>[]{IRecipeSlotsView.class},
+                        (proxy, method, args) -> {
+                            if (method.getReturnType().equals(java.util.List.class)) return java.util.List.of();
+                            if (method.getReturnType().equals(java.util.Optional.class)) return java.util.Optional.empty();
+                            if (method.getReturnType() == boolean.class) return false;
+                            if (method.getReturnType() == int.class) return 0;
+                            return null;
+                        }
+                );
+
+                g.pose().pushPose();
+                g.pose().translate(recipeX, recipeY, 0);
+                rawCat.draw(capturedLayout.exampleRecipe(), dummyView, g, mouseX - recipeX, mouseY - recipeY);
+                g.pose().popPose();
+            } catch (Exception ex) {
+                // Ignore draw errors
+            }
+        }
+        IDrawable catIcon = resolveDrawableIcon();
+        if (catIcon != null && recipeY >= topPos + 16) {
+            try {
+                catIcon.draw(g, recipeX + 4, recipeY - 14);
+            } catch (Exception ignored) {}
         }
 
         // Interactive slot contents
@@ -261,7 +318,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         // Extra field row label + current value (buttons are added as widgets in init)
         if (isCompostingCategory || isFuelCategory) {
-            int fy = TOP_BAR + PADDING + category.getHeight() + PADDING + 7;
+            int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING + 7;
             String label = isCompostingCategory ? "Chance:" : "Burn time:";
             String value = isCompostingCategory ? compostChancePct + "%" : fuelBurnSecs + "s";
             g.drawString(font, label, PADDING + 2, fy, 0xFFAAAAAA, false);
@@ -305,6 +362,8 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         int ix = itemX(slot);
         int iy = itemY(slot);
         boolean hover = slot.contains(mouseX, mouseY) && activePopup == null;
+
+        g.blitSprite(VANILLA_SLOT_SPRITE, slot.x, slot.y, 18, 18);
 
         if (hover) g.fill(ix - 1, iy - 1, ix + 17, iy + 17, 0x55FFFFFF);
 
