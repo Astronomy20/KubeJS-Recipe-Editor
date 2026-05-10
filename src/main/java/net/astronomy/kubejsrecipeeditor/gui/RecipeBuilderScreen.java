@@ -2,7 +2,6 @@ package net.astronomy.kubejsrecipeeditor.gui;
 
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.gui.ingredient.IRecipeSlotDrawablesView;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
@@ -10,6 +9,7 @@ import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -24,58 +24,123 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMenu> {
-    private static final int TOP_BAR   = 24;
-    private static final int BOTTOM_BAR = 28;
-    private static final int PADDING    = 8;
+    private static final int TOP_BAR      = 24;
+    private static final int BOTTOM_BAR   = 28;
+    private static final int PADDING      = 8;
+    private static final int EXTRA_FIELD_H = 22; // extra row for composting/fuel fields
 
     private final IRecipeCategory<?> category;
-    private final List<SlotData> slots = new ArrayList<>();
-    private final List<int[]> allSlotCovers = new ArrayList<>();
+    private final boolean isCompostingCategory;
+    private final boolean isFuelCategory;
+
+    private final List<SlotData> slots        = new ArrayList<>();
+    private final List<int[]>    allSlotCovers = new ArrayList<>();
     private IRecipeLayoutDrawable<?> templateLayout;
 
     private int recipeX, recipeY;
     private String statusMessage = "";
-    private int statusColor = 0xFFFFFF;
+    private int    statusColor   = 0xFFFFFF;
+
+    // Extra category-specific fields
+    private int compostChancePct = 30;  // 1–100 %
+    private int fuelBurnSecs    = 10;  // seconds; exported as ticks (×20)
+
+    // ─── Drag state ───────────────────────────────────────────────────────────
+    private SlotData  pendingDragSlot    = null;
+    private SlotData  draggingSourceSlot = null;
+    private ItemStack draggingItem       = ItemStack.EMPTY;
+    private boolean   isDragging         = false;
+    private double    dragStartX, dragStartY;
+
+    // ─── Popup ────────────────────────────────────────────────────────────────
+    private TagSelectionPopup activePopup = null;
+
+    // ═══════════════════════════════════════════════════════════════════════════
 
     public RecipeBuilderScreen(RecipeBuilderMenu menu, Inventory inventory, IRecipeCategory<?> category) {
         super(menu, inventory, Component.literal(category.getTitle().getString()));
         this.category = category;
-        // imageWidth / imageHeight drive leftPos / topPos in init()
-        this.imageWidth  = Math.max(240, category.getWidth()  + PADDING * 2);
-        this.imageHeight = TOP_BAR + PADDING + category.getHeight() + PADDING + 10 + BOTTOM_BAR;
+        this.isCompostingCategory = detectComposting(category);
+        this.isFuelCategory       = detectFuel(category);
+
+        boolean hasExtra = isCompostingCategory || isFuelCategory;
+        this.imageWidth  = Math.max(240, category.getWidth() + PADDING * 2);
+        this.imageHeight = TOP_BAR + PADDING + category.getHeight() + PADDING
+                + (hasExtra ? EXTRA_FIELD_H : 10) + BOTTOM_BAR;
     }
 
-    // Public getters used by JeiIntegration for addGuiContainerHandler
+    private static boolean detectComposting(IRecipeCategory<?> cat) {
+        String uid   = cat.getRecipeType().getUid().toString();
+        String title = cat.getTitle().getString();
+        return uid.contains("composting") || title.equalsIgnoreCase("composting");
+    }
+
+    private static boolean detectFuel(IRecipeCategory<?> cat) {
+        String uid   = cat.getRecipeType().getUid().toString();
+        String title = cat.getTitle().getString();
+        return uid.contains("fuel") || title.equalsIgnoreCase("fuel");
+    }
+
     public int getWinX() { return leftPos; }
     public int getWinY() { return topPos; }
     public int getWinW() { return imageWidth; }
     public int getWinH() { return imageHeight; }
 
+    // ─── Init ─────────────────────────────────────────────────────────────────
+
     @Override
     protected void init() {
-        super.init(); // sets leftPos = (width - imageWidth)/2, topPos = (height - imageHeight)/2
-
+        super.init();
         slots.clear();
         allSlotCovers.clear();
         templateLayout = null;
+        activePopup    = null;
+        resetDrag();
 
         recipeX = leftPos + (imageWidth - category.getWidth()) / 2;
-        recipeY = topPos + TOP_BAR + PADDING;
+        recipeY = topPos  + TOP_BAR + PADDING;
 
         buildSlotsFromJei();
 
+        // Home button
         addRenderableWidget(Button.builder(Component.literal("⌂"), btn -> goHome())
                 .pos(leftPos + 4, topPos + 4).size(20, 16).build());
 
+        // Extra field buttons for composting / fuel (shift-click = step 10)
+        if (isCompostingCategory || isFuelCategory) {
+            int fy = topPos + TOP_BAR + PADDING + category.getHeight() + PADDING + 4;
+            int cx = leftPos + imageWidth / 2;
+            addRenderableWidget(Button.builder(Component.literal("-"),
+                            btn -> decrementField(Screen.hasShiftDown()))
+                    .pos(cx - 28, fy).size(14, 14).build());
+            addRenderableWidget(Button.builder(Component.literal("+"),
+                            btn -> incrementField(Screen.hasShiftDown()))
+                    .pos(cx + 14, fy).size(14, 14).build());
+        }
+
+        // Bottom buttons
         addRenderableWidget(Button.builder(Component.literal("Clear"), btn -> clearSlots())
                 .pos(leftPos + imageWidth / 2 - 46, topPos + imageHeight - 22).size(44, 16).build());
-
         addRenderableWidget(Button.builder(Component.literal("Export"), btn -> exportRecipe())
                 .pos(leftPos + imageWidth / 2 + 2, topPos + imageHeight - 22).size(44, 16).build());
+    }
+
+    private void decrementField(boolean shift) {
+        int step = shift ? 10 : 1;
+        if (isCompostingCategory) compostChancePct = Math.max(1,   compostChancePct - step);
+        if (isFuelCategory)       fuelBurnSecs    = Math.max(1,    fuelBurnSecs    - step);
+    }
+
+    private void incrementField(boolean shift) {
+        int step = shift ? 10 : 1;
+        if (isCompostingCategory) compostChancePct = Math.min(100,  compostChancePct + step);
+        if (isFuelCategory)       fuelBurnSecs    = Math.min(1638, fuelBurnSecs    + step);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -84,9 +149,22 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         if (runtime == null) return;
         try {
             IFocusGroup emptyFocus = runtime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
+            final String typeUid = category.getRecipeType().getUid().toString();
             Optional template = runtime.getRecipeManager()
                     .createRecipeLookup((mezz.jei.api.recipe.RecipeType) category.getRecipeType())
-                    .get().findFirst();
+                    .get()
+                    .filter(r -> {
+                        // For crafting, prefer ShapedRecipe so slots are at distinct grid positions
+                        if ("minecraft:crafting".equals(typeUid) || "crafting".equals(typeUid)) {
+                            return (r instanceof net.minecraft.world.item.crafting.RecipeHolder<?> h)
+                                    && h.value() instanceof net.minecraft.world.item.crafting.ShapedRecipe;
+                        }
+                        return true;
+                    })
+                    .findFirst()
+                    .or(() -> runtime.getRecipeManager()
+                            .createRecipeLookup((mezz.jei.api.recipe.RecipeType) category.getRecipeType())
+                            .get().findFirst());
             if (template.isEmpty()) return;
 
             Optional layoutOpt = runtime.getRecipeManager()
@@ -97,24 +175,46 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             layout.setPosition(recipeX, recipeY);
             templateLayout = layout;
 
-            if (!(layout.getRecipeSlotsView() instanceof IRecipeSlotDrawablesView drawablesView)) return;
+            var slotViews = layout.getRecipeSlotsView().getSlotViews();
+            KubeJsRecipeEditor.LOGGER.info("[RecipeBuilder] recipeX={} recipeY={} slotViews={}",
+                    recipeX, recipeY, slotViews.size());
 
-            for (IRecipeSlotDrawable slotDrawable : drawablesView.getSlots()) {
+            Set<Long> seenPos = new HashSet<>();
+            int idx = 0;
+            for (var slotView : slotViews) {
+                if (!(slotView instanceof IRecipeSlotDrawable slotDrawable)) continue;
+
                 RecipeIngredientRole role = slotDrawable.getRole();
                 var rect = slotDrawable.getAreaIncludingBackground();
                 int absX = recipeX + rect.getX();
                 int absY = recipeY + rect.getY();
 
-                allSlotCovers.add(new int[]{absX, absY, rect.getWidth(), rect.getHeight()});
+                // Deduplicate cycling-ingredient views that share the same screen position
+                long posKey = ((long) absX << 32) | (absY & 0xFFFFFFFFL);
+                if (!seenPos.add(posKey)) continue;
+
+                // Normalize to 18×18 centered within any compound area
+                int normX = absX + Math.max(0, (rect.getWidth()  - 18) / 2);
+                int normY = absY + Math.max(0, (rect.getHeight() - 18) / 2);
+
+                if (idx < 4) KubeJsRecipeEditor.LOGGER.info(
+                        "[RecipeBuilder] slot[{}] role={} local=({},{}) size=({},{}) norm=({},{})",
+                        idx, role, rect.getX(), rect.getY(), rect.getWidth(), rect.getHeight(), normX, normY);
+                idx++;
+
+                // RENDER_ONLY slots are illustrative (fuel flames, XP bars) — no cover, no interaction
                 if (role == RecipeIngredientRole.RENDER_ONLY) continue;
 
-                int row = rect.getHeight() > 0 ? rect.getY() / rect.getHeight() : 0;
-                int col = rect.getWidth() > 0 ? rect.getX() / rect.getWidth() : 0;
-                slots.add(new SlotData(absX, absY, rect.getWidth(), rect.getHeight(), role, row, col));
+                allSlotCovers.add(new int[]{normX, normY});
+
+                // +1 compensates for JEI's -1px border offset in local coords
+                int row = (rect.getY() + 1) / 18;
+                int col = (rect.getX() + 1) / 18;
+                slots.add(new SlotData(normX, normY, 18, 18, role, row, col));
             }
+            KubeJsRecipeEditor.LOGGER.info("[RecipeBuilder] interactive={} covers={}", slots.size(), allSlotCovers.size());
         } catch (Exception e) {
-            KubeJsRecipeEditor.LOGGER.error("Failed to build slots for {}: {}",
-                    category.getRecipeType().getUid(), e.getMessage());
+            KubeJsRecipeEditor.LOGGER.error("Failed to build slots for {}: {}", category.getRecipeType().getUid(), e.getMessage());
         }
     }
 
@@ -122,8 +222,6 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // Skip renderTransparentBackground() so the game world stays visible on the sides
-        // (JEI needs that space). Only draw our window panel.
         renderBg(g, partialTick, mouseX, mouseY);
     }
 
@@ -135,22 +233,41 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         g.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xFF1E1E1E);
         g.fill(leftPos, topPos, leftPos + imageWidth, topPos + TOP_BAR, 0xFF2D2D2D);
 
-        // JEI recipe layout (grid + template items)
+        // JEI recipe template background + decorative items
         if (templateLayout != null) {
             try { templateLayout.drawRecipe(g, mouseX, mouseY); } catch (Exception ignored) {}
         }
 
-        // Cover the interior of every slot to hide template items, leaving JEI's 1px border visible
+        // Slot covers (18×18, only for interactive slots)
         for (int[] r : allSlotCovers) {
-            g.fill(r[0] + 1, r[1] + 1, r[0] + r[2] - 1, r[1] + r[3] - 1, 0xFF3C3C3C);
+            g.fill(r[0], r[1], r[0] + 18, r[1] + 18, 0xFF3C3C3C);
+        }
+
+        // Interactive slot contents
+        for (SlotData slot : slots) {
+            if (isDragging && slot == draggingSourceSlot) continue;
+            renderSlot(g, slot, mouseX, mouseY);
+        }
+
+        // Dragged item follows cursor
+        if (isDragging && !draggingItem.isEmpty()) {
+            g.renderItem(draggingItem, mouseX - 8, mouseY - 8);
         }
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        // Custom title in the top bar (coords are relative to leftPos, topPos in AbstractContainerScreen)
         g.drawCenteredString(font, title, imageWidth / 2, 8, 0xFFFFFF);
-        // Status message
+
+        // Extra field row label + current value (buttons are added as widgets in init)
+        if (isCompostingCategory || isFuelCategory) {
+            int fy = TOP_BAR + PADDING + category.getHeight() + PADDING + 7;
+            String label = isCompostingCategory ? "Chance:" : "Burn time:";
+            String value = isCompostingCategory ? compostChancePct + "%" : fuelBurnSecs + "s";
+            g.drawString(font, label, PADDING + 2, fy, 0xFFAAAAAA, false);
+            g.drawCenteredString(font, value, imageWidth / 2, fy, 0xFFFFFFFF);
+        }
+
         if (!statusMessage.isEmpty()) {
             g.drawCenteredString(font, Component.literal(statusMessage),
                     imageWidth / 2, imageHeight - BOTTOM_BAR - 8, statusColor);
@@ -159,35 +276,49 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        super.render(g, mouseX, mouseY, partialTick); // renderBackground + widgets + renderLabels
+        super.render(g, mouseX, mouseY, partialTick);
 
-        // Interactive slots on top
-        for (SlotData slot : slots) {
-            renderSlot(g, slot, mouseX, mouseY);
+        // Popup renders at high z so it sits above buttons, items, and text
+        if (activePopup != null) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 300);
+            activePopup.render(g, font, mouseX, mouseY);
+            g.pose().popPose();
         }
 
-        // Item tooltips
-        for (SlotData slot : slots) {
-            if (slot.contains(mouseX, mouseY) && !slot.ingredient.isEmpty()) {
-                g.renderTooltip(font, slot.ingredient, mouseX, mouseY);
-                break;
+        if (activePopup == null && !isDragging) {
+            for (SlotData slot : slots) {
+                if (slot.contains(mouseX, mouseY) && !slot.ingredient.isEmpty()) {
+                    g.renderTooltip(font, slot.ingredient, mouseX, mouseY);
+                    break;
+                }
             }
         }
     }
 
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private static int itemX(SlotData slot) { return slot.x + (slot.w - 16) / 2; }
+    private static int itemY(SlotData slot) { return slot.y + (slot.h - 16) / 2; }
+
     private void renderSlot(GuiGraphics g, SlotData slot, int mouseX, int mouseY) {
-        boolean hover = slot.contains(mouseX, mouseY);
-        if (slot.role == RecipeIngredientRole.OUTPUT) {
-            g.fill(slot.x - 1, slot.y - 1, slot.x + slot.w + 1, slot.y + slot.h + 1, 0x88FFAA00);
-        }
-        if (hover) {
-            g.fill(slot.x + 1, slot.y + 1, slot.x + slot.w - 1, slot.y + slot.h - 1, 0x44FFFFFF);
-        }
+        int ix = itemX(slot);
+        int iy = itemY(slot);
+        boolean hover = slot.contains(mouseX, mouseY) && activePopup == null;
+
+        if (hover) g.fill(ix - 1, iy - 1, ix + 17, iy + 17, 0x55FFFFFF);
+
         if (!slot.ingredient.isEmpty()) {
-            g.renderItem(slot.ingredient, slot.x, slot.y);
-            g.renderItemDecorations(font, slot.ingredient, slot.x, slot.y);
+            g.renderItem(slot.ingredient, ix, iy);
+            g.renderItemDecorations(font, slot.ingredient, ix, iy);
+
+            if (slot.useTag && slot.selectedTag != null) {
+                g.drawString(font, "#", ix + 11, iy + 8, 0xFFFFFF00, false);
+            }
+
             if (hover) {
-                g.drawString(font, "×", slot.x + slot.w - 5, slot.y, 0xFFFF5555, false);
+                g.fill(ix + 8, iy - 1, ix + 17, iy + 8, 0x88000000);
+                g.drawString(font, "×", ix + 10, iy, 0xFFFF5555, false);
             }
         }
     }
@@ -195,34 +326,120 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     // ─── Input ────────────────────────────────────────────────────────────────
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 || button == 1) {
+    public boolean mouseClicked(double mx, double my, int button) {
+        int mouseX = (int) mx;
+        int mouseY = (int) my;
+
+        if (activePopup != null) {
+            boolean consumed = activePopup.mouseClicked(mouseX, mouseY);
+            if (!activePopup.keepOpen()) activePopup = null;
+            if (consumed) return true;
+        }
+
+        if (button == 0) {
             for (SlotData slot : slots) {
-                if (slot.contains((int) mouseX, (int) mouseY)) {
-                    slot.ingredient = ItemStack.EMPTY;
+                if (!slot.contains(mouseX, mouseY)) continue;
+                if (!slot.ingredient.isEmpty() && isXArea(slot, mouseX, mouseY)) {
+                    slot.clear();
                     statusMessage = "";
+                    return true;
+                }
+                if (!slot.ingredient.isEmpty()) {
+                    pendingDragSlot = slot;
+                    dragStartX = mx;
+                    dragStartY = my;
                     return true;
                 }
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+
+        if (button == 1) {
+            for (SlotData slot : slots) {
+                if (!slot.contains(mouseX, mouseY) || slot.ingredient.isEmpty()) continue;
+                activePopup = new TagSelectionPopup(slot, width, height);
+                return true;
+            }
+        }
+
+        return super.mouseClicked(mx, my, button);
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (button == 0 && pendingDragSlot != null) {
+            double dist = Math.abs(mx - dragStartX) + Math.abs(my - dragStartY);
+            if (dist > 3) {
+                draggingSourceSlot = pendingDragSlot;
+                draggingItem = draggingSourceSlot.ingredient.copy();
+                draggingSourceSlot.ingredient = ItemStack.EMPTY;
+                draggingSourceSlot.useTag = false;
+                draggingSourceSlot.selectedTag = null;
+                isDragging = true;
+                pendingDragSlot = null;
+            }
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dx, dy);
     }
 
-    // ─── Ghost ingredient handler access ─────────────────────────────────────
-
-    public List<SlotData> getInteractiveSlots() {
-        return slots;
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (button == 0) {
+            if (isDragging) {
+                SlotData target = findSlotAt((int) mx, (int) my);
+                if (target != null && target != draggingSourceSlot) {
+                    ItemStack swap = target.ingredient.copy();
+                    target.ingredient = draggingItem;
+                    target.useTag = false;
+                    target.selectedTag = null;
+                    draggingSourceSlot.ingredient = swap;
+                }
+                resetDrag();
+                return true;
+            }
+            pendingDragSlot = null;
+        }
+        return super.mouseReleased(mx, my, button);
     }
 
-    // ─── Actions ─────────────────────────────────────────────────────────────
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == 256 && activePopup != null) {
+            activePopup = null;
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean isPauseScreen() { return false; }
+
+    private boolean isXArea(SlotData slot, int mouseX, int mouseY) {
+        int ix = itemX(slot);
+        int iy = itemY(slot);
+        return mouseX >= ix + 8 && mouseX < ix + 16 && mouseY >= iy - 1 && mouseY < iy + 8;
+    }
+
+    private SlotData findSlotAt(int mouseX, int mouseY) {
+        for (SlotData slot : slots) {
+            if (slot.contains(mouseX, mouseY)) return slot;
+        }
+        return null;
+    }
+
+    private void resetDrag() {
+        pendingDragSlot    = null;
+        draggingSourceSlot = null;
+        draggingItem       = ItemStack.EMPTY;
+        isDragging         = false;
+    }
+
+    public List<SlotData> getInteractiveSlots() { return slots; }
+
+    // ─── Actions ──────────────────────────────────────────────────────────────
 
     private void clearSlots() {
-        slots.forEach(s -> s.ingredient = ItemStack.EMPTY);
+        slots.forEach(SlotData::clear);
         statusMessage = "";
     }
 
@@ -234,23 +451,82 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
     private void exportRecipe() {
-        boolean hasOutput = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty());
-        if (!hasOutput) { statusMessage = "Export failed: output slot is empty"; statusColor = 0xFF5555; return; }
-        boolean hasInput  = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.INPUT  && !s.isEmpty());
-        if (!hasInput)  { statusMessage = "Export failed: no ingredients defined"; statusColor = 0xFF5555; return; }
+        boolean hasInput = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty());
+
+        if (isCompostingCategory || isFuelCategory) {
+            if (!hasInput) { statusMessage = "Set an input item first"; statusColor = 0xFF5555; return; }
+        } else {
+            boolean hasOutput = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty());
+            if (!hasOutput) { statusMessage = "Export failed: output slot is empty"; statusColor = 0xFF5555; return; }
+            if (!hasInput)  { statusMessage = "Export failed: no ingredients defined"; statusColor = 0xFF5555; return; }
+        }
 
         try {
-            String js = buildKubeJs();
             Path outFile = resolveOutputFile();
             Files.createDirectories(outFile.getParent());
-
             String existing = Files.exists(outFile) ? Files.readString(outFile) : buildFileHeader();
             String trimmed  = existing.stripTrailing();
             if (trimmed.endsWith("})")) trimmed = trimmed.substring(0, trimmed.length() - 2);
-            Files.writeString(outFile, trimmed + "\n    // " + recipeName() + "\n" + js + "\n\n})\n");
 
-            Path rel = Minecraft.getInstance().gameDirectory.toPath().relativize(outFile);
-            statusMessage = "Saved to " + rel;
+            ResourceLocation uid = category.getRecipeType().getUid();
+            SlotData outputSlot = slots.stream()
+                    .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
+                    .findFirst().orElse(null);
+            boolean tagOutput = !isCompostingCategory && !isFuelCategory
+                    && outputSlot != null && outputSlot.useTag && outputSlot.selectedTag != null;
+
+            if (tagOutput) {
+                List<SlotData> inputs = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT).toList();
+                List<ItemStack> outItems = getTagItems(outputSlot.selectedTag);
+                if (outItems.isEmpty()) {
+                    statusMessage = "Output tag is empty or not found";
+                    statusColor = 0xFF5555;
+                    return;
+                }
+
+                // Check if there is exactly one tag-input slot — if so, do paired expansion
+                SlotData tagInputSlot = inputs.stream()
+                        .filter(s -> !s.isEmpty() && s.useTag && s.selectedTag != null)
+                        .findFirst().orElse(null);
+                List<ItemStack> inItems = tagInputSlot != null
+                        ? getTagItems(tagInputSlot.selectedTag) : List.of();
+                boolean paired = !inItems.isEmpty();
+
+                if (paired && inItems.size() != outItems.size()) {
+                    statusMessage = "Tags have different sizes (" + inItems.size()
+                            + " vs " + outItems.size() + ") — cannot pair";
+                    statusColor = 0xFF5555;
+                    return;
+                }
+
+                StringBuilder sb = new StringBuilder(trimmed);
+                for (int i = 0; i < outItems.size(); i++) {
+                    ItemStack outItem = outItems.get(i);
+                    String outStr = IngredientFormatter.formatItemStack(outItem.copyWithCount(outputSlot.count));
+                    String outPath = outItem.getItem().builtInRegistryHolder().key().location().getPath();
+
+                    List<SlotData> effectiveInputs;
+                    if (paired) {
+                        // Replace the tag-input slot with the specific paired item
+                        final int idx = i;
+                        final SlotData tis = tagInputSlot;
+                        effectiveInputs = inputs.stream()
+                                .map(s -> s == tis ? withItem(s, inItems.get(idx)) : s)
+                                .toList();
+                    } else {
+                        effectiveInputs = inputs;
+                    }
+
+                    String line = buildVanillaLine(uid, outStr, effectiveInputs)
+                            + ".id('kjs:" + uid.getPath() + "/" + outPath + "')";
+                    sb.append("\n    // ").append(outPath).append("\n").append(line).append("\n");
+                }
+                Files.writeString(outFile, sb.append("\n})\n").toString());
+            } else {
+                String js = buildKubeJs(uid, outputSlot);
+                Files.writeString(outFile, trimmed + "\n    // " + recipeName() + "\n" + js + "\n\n})\n");
+            }
+            statusMessage = "Saved to " + Minecraft.getInstance().gameDirectory.toPath().relativize(outFile);
             statusColor = 0x55FF55;
         } catch (Exception e) {
             statusMessage = "Export failed: " + e.getMessage();
@@ -258,81 +534,114 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         }
     }
 
-    // ─── KubeJS output builders ───────────────────────────────────────────────
+    // ─── KubeJS builders ──────────────────────────────────────────────────────
 
-    private String buildKubeJs() {
-        ResourceLocation uid = category.getRecipeType().getUid();
+    private String buildKubeJs(ResourceLocation uid, SlotData outputSlot) {
+        if (isCompostingCategory) return buildComposting();
+        if (isFuelCategory)       return buildFuel();
+
         String ns   = uid.getNamespace();
         String path = uid.getPath();
-
-        SlotData outputSlot = slots.stream()
-                .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
-                .findFirst().orElse(null);
-        String output = outputSlot != null
-                ? IngredientFormatter.formatItemStack(outputSlot.ingredient) : "'minecraft:air'";
+        String output = outputSlot != null ? outputSlot.toKubeJs() : "'minecraft:air'";
         List<SlotData> inputs = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT).toList();
 
+        String built = buildVanillaLine(uid, output, inputs);
+        built += ".id('" + buildRecipeId(uid, outputSlot) + "')";
+        return built;
+    }
+
+    private String buildVanillaLine(ResourceLocation uid, String output, List<SlotData> inputs) {
+        String ns = uid.getNamespace(), path = uid.getPath();
         if (ns.equals("minecraft")) {
             return switch (path) {
                 case "crafting", "crafting_shaped", "crafting_shapeless" -> buildCrafting(output, inputs);
-                case "smelting"       -> buildCooking("smelting",       output, inputs);
-                case "blasting"       -> buildCooking("blasting",       output, inputs);
-                case "smoking"        -> buildCooking("smoking",        output, inputs);
+                case "smelting"         -> buildCooking("smelting",        output, inputs);
+                case "blasting"         -> buildCooking("blasting",        output, inputs);
+                case "smoking"          -> buildCooking("smoking",         output, inputs);
                 case "campfire_cooking" -> buildCooking("campfireCooking", output, inputs);
-                case "stonecutting"   -> buildCooking("stonecutting",   output, inputs);
+                case "stonecutting"     -> buildCooking("stonecutting",    output, inputs);
                 case "smithing", "smithing_transform" -> buildSmithing(output);
-                default               -> buildCustom(uid, output, inputs);
+                default -> buildCustom(uid, output, inputs);
             };
         }
         return buildCustom(uid, output, inputs);
+    }
+
+    /** Returns a copy of {@code src} with the ingredient replaced by {@code item} and useTag cleared. */
+    private SlotData withItem(SlotData src, ItemStack item) {
+        SlotData copy = new SlotData(src.x, src.y, src.w, src.h, src.role, src.gridRow, src.gridCol);
+        copy.ingredient = item.copy();
+        copy.useTag = false;
+        copy.selectedTag = null;
+        copy.count = src.count;
+        return copy;
+    }
+
+    private List<ItemStack> getTagItems(ResourceLocation tagId) {
+        try {
+            var reg = Minecraft.getInstance().level.registryAccess();
+            var key = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, tagId);
+            List<ItemStack> items = new ArrayList<>();
+            reg.registryOrThrow(net.minecraft.core.registries.Registries.ITEM).getTag(key)
+               .ifPresent(named -> named.forEach(h -> items.add(new ItemStack(h.value()))));
+            return items;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private String buildComposting() {
+        String item = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty())
+                .findFirst().map(SlotData::toKubeJs).orElse("'minecraft:air'");
+        String chance = String.format("%.2f", compostChancePct / 100.0);
+        return "    event.add(" + item + ", " + chance + ")";
+    }
+
+    private String buildFuel() {
+        String item = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty())
+                .findFirst().map(SlotData::toKubeJs).orElse("'minecraft:air'");
+        return "    event.add(" + item + ", " + (fuelBurnSecs * 20) + ")";
     }
 
     private String buildCrafting(String output, List<SlotData> inputs) {
         if (inputs.stream().noneMatch(s -> !s.isEmpty())) return "    // No inputs";
         int maxRow = inputs.stream().mapToInt(s -> s.gridRow).max().orElse(0);
         int maxCol = inputs.stream().mapToInt(s -> s.gridCol).max().orElse(0);
-        ItemStack[][] grid = new ItemStack[maxRow + 1][maxCol + 1];
-        for (var row : grid) java.util.Arrays.fill(row, ItemStack.EMPTY);
-        for (SlotData s : inputs)
-            if (s.gridRow <= maxRow && s.gridCol <= maxCol) grid[s.gridRow][s.gridCol] = s.ingredient;
+        SlotData[][] grid = new SlotData[maxRow + 1][maxCol + 1];
+        for (SlotData s : inputs) if (s.gridRow <= maxRow && s.gridCol <= maxCol) grid[s.gridRow][s.gridCol] = s;
 
         java.util.Map<String, Character> keyMap = new java.util.LinkedHashMap<>();
         char letter = 'A';
-        for (var row : grid)
-            for (var stack : row)
-                if (!stack.isEmpty()) {
-                    String id = stack.getItem().builtInRegistryHolder().key().location().toString();
-                    if (!keyMap.containsKey(id)) keyMap.put(id, letter++);
+        for (SlotData[] row : grid)
+            for (SlotData s : row)
+                if (s != null && !s.isEmpty()) {
+                    String key = s.toKubeJs();
+                    if (!keyMap.containsKey(key)) keyMap.put(key, letter++);
                 }
 
         StringBuilder sb = new StringBuilder("    event.shaped(").append(output).append(", [\n");
-        for (var row : grid) {
+        for (SlotData[] row : grid) {
             sb.append("        '");
-            for (var stack : row) {
-                if (stack.isEmpty()) sb.append(' ');
-                else sb.append(keyMap.get(stack.getItem().builtInRegistryHolder().key().location().toString()));
-            }
+            for (SlotData s : row) sb.append(s == null || s.isEmpty() ? ' ' : keyMap.get(s.toKubeJs()));
             sb.append("',\n");
         }
         sb.append("    ], {\n");
-        for (var e : keyMap.entrySet())
-            sb.append("        ").append(e.getValue()).append(": '").append(e.getKey()).append("',\n");
+        for (var e : keyMap.entrySet()) sb.append("        ").append(e.getValue()).append(": ").append(e.getKey()).append(",\n");
         sb.append("    })");
         return sb.toString();
     }
 
     private String buildCooking(String method, String output, List<SlotData> inputs) {
         String input = inputs.stream().filter(s -> !s.isEmpty()).findFirst()
-                .map(s -> IngredientFormatter.formatItemStack(s.ingredient))
-                .orElse("'minecraft:air'");
+                .map(SlotData::toKubeJs).orElse("'minecraft:air'");
         return "    event." + method + "(" + output + ", " + input + ")";
     }
 
     private String buildSmithing(String output) {
         List<SlotData> ins = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT).toList();
-        String t = ins.size() > 0 && !ins.get(0).isEmpty() ? IngredientFormatter.formatItemStack(ins.get(0).ingredient) : "'minecraft:air'";
-        String b = ins.size() > 1 && !ins.get(1).isEmpty() ? IngredientFormatter.formatItemStack(ins.get(1).ingredient) : "'minecraft:air'";
-        String a = ins.size() > 2 && !ins.get(2).isEmpty() ? IngredientFormatter.formatItemStack(ins.get(2).ingredient) : "'minecraft:air'";
+        String t = ins.size() > 0 && !ins.get(0).isEmpty() ? ins.get(0).toKubeJs() : "'minecraft:air'";
+        String b = ins.size() > 1 && !ins.get(1).isEmpty() ? ins.get(1).toKubeJs() : "'minecraft:air'";
+        String a = ins.size() > 2 && !ins.get(2).isEmpty() ? ins.get(2).toKubeJs() : "'minecraft:air'";
         return "    event.smithing(\n        " + t + ",\n        " + b + ",\n        " + a + ",\n        " + output + "\n    )";
     }
 
@@ -340,36 +649,58 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         StringBuilder sb = new StringBuilder("    event.custom({\n");
         sb.append("        \"type\": \"").append(uid).append("\",\n");
         sb.append("        \"ingredients\": [\n");
-        for (SlotData s : inputs)
-            if (!s.isEmpty()) {
-                String id = s.ingredient.getItem().builtInRegistryHolder().key().location().toString();
-                sb.append("            { \"item\": \"").append(id).append("\" },\n");
-            }
+        for (SlotData s : inputs) if (!s.isEmpty()) sb.append("            { \"item\": ").append(s.toKubeJs()).append(" },\n");
         sb.append("        ],\n");
         sb.append("        \"result\": { \"item\": ").append(output).append(" }\n    })");
         return sb.toString();
     }
 
+    private String buildRecipeId(ResourceLocation uid, SlotData outputSlot) {
+        String type = uid.getPath();
+        if (outputSlot == null || outputSlot.isEmpty()) return "kjs:" + type + "/unnamed";
+        String outPath = outputSlot.ingredient.getItem()
+                .builtInRegistryHolder().key().location().getPath();
+        return "kjs:" + type + "/" + outPath;
+    }
+
     private Path resolveOutputFile() {
+        if (isCompostingCategory) return gameDir().resolve("kubejs/server_scripts/composting.js");
+        if (isFuelCategory)       return gameDir().resolve("kubejs/server_scripts/fuel.js");
         ResourceLocation uid = category.getRecipeType().getUid();
         String folder = uid.getNamespace().equals("minecraft") ? "vanilla" : uid.getNamespace();
-        return Minecraft.getInstance().gameDirectory.toPath()
-                .resolve("kubejs/server_scripts/" + folder + "/" + uid.getPath() + ".js");
+        return gameDir().resolve("kubejs/server_scripts/" + folder + "/" + uid.getPath() + ".js");
     }
 
     private String buildFileHeader() {
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        if (isCompostingCategory) {
+            return "// Auto-generated by KubeJS Recipe Editor\n// Generated: " + ts
+                    + "\n\nServerEvents.compostableRecipes(event => {\n\n})\n";
+        }
+        if (isFuelCategory) {
+            return "// Auto-generated by KubeJS Recipe Editor\n// Generated: " + ts
+                    + "\n\nServerEvents.fuelBurnTime(event => {\n\n})\n";
+        }
         ResourceLocation uid = category.getRecipeType().getUid();
-        return "// Auto-generated by KubeJS Recipe Editor\n"
-                + "// Recipe type: " + uid + "\n"
-                + "// Generated: " + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "\n\n"
-                + "ServerEvents.recipes(event => {\n\n})\n";
+        return "// Auto-generated by KubeJS Recipe Editor\n// Recipe type: " + uid
+                + "\n// Generated: " + ts
+                + "\n\nServerEvents.recipes(event => {\n\n})\n";
     }
 
     private String recipeName() {
-        return slots.stream()
-                .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
+        if (isCompostingCategory || isFuelCategory) {
+            return slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty())
+                    .findFirst()
+                    .map(s -> s.ingredient.getItem().builtInRegistryHolder().key().location().toString())
+                    .orElse("custom");
+        }
+        return slots.stream().filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
                 .findFirst()
                 .map(s -> s.ingredient.getItem().builtInRegistryHolder().key().location().toString())
                 .orElse("custom");
+    }
+
+    private Path gameDir() {
+        return Minecraft.getInstance().gameDirectory.toPath();
     }
 }

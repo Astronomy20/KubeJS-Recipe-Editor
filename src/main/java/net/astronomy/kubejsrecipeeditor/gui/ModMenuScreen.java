@@ -3,6 +3,7 @@ package net.astronomy.kubejsrecipeeditor.gui;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -12,12 +13,12 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class ModMenuScreen extends Screen {
-    private static final int TITLE_H = 28;
-    private static final int BUTTON_W = 110;
-    private static final int BUTTON_H = 20;
+    private static final int TITLE_H   = 28;
+    private static final int BUTTON_W  = 110;
+    private static final int BUTTON_H  = 20;
     private static final int BUTTON_PAD = 2;
     private static final int SECTION_H = 16;
-    private static final int MARGIN = 8;
+    private static final int MARGIN    = 8;
 
     // Sorted sections: "minecraft" first, rest alphabetically
     private final List<String> namespaces = new ArrayList<>();
@@ -44,6 +45,7 @@ public class ModMenuScreen extends Screen {
                 .createRecipeCategoryLookup().get();
 
         categories.forEach(cat -> {
+            if (isTagBrowserCategory(cat)) return; // Tag Editor covers this
             String ns = cat.getRecipeType().getUid().getNamespace();
             sections.computeIfAbsent(ns, k -> new ArrayList<>()).add(cat);
         });
@@ -57,6 +59,27 @@ public class ModMenuScreen extends Screen {
         });
 
         computeTotalHeight();
+
+        // Tag Editor button — top-left of title bar
+        addRenderableWidget(Button.builder(Component.literal("Tags"), btn -> openTagEditor())
+                .pos(4, 6).size(36, 14).build());
+
+        // Recipe Browser button — top-right of title bar
+        addRenderableWidget(Button.builder(Component.literal("Browse"), btn -> openRecipeBrowser())
+                .pos(width - 52, 6).size(48, 14).build());
+    }
+
+    private void openTagEditor() {
+        GuiSessionState.setLastScreenType(GuiSessionState.LastScreenType.TAG_EDITOR);
+        GuiSessionState.setLastCategory(null);
+        RecipeBuilderMenu menu = new RecipeBuilderMenu(0, minecraft.player.getInventory());
+        minecraft.setScreen(new TagEditorScreen(menu, minecraft.player.getInventory()));
+    }
+
+    private void openRecipeBrowser() {
+        GuiSessionState.setLastScreenType(GuiSessionState.LastScreenType.RECIPE_BROWSER);
+        GuiSessionState.setLastCategory(null);
+        minecraft.setScreen(new RecipeBrowserScreen());
     }
 
     private void computeTotalHeight() {
@@ -240,6 +263,7 @@ public class ModMenuScreen extends Screen {
 
     private void openRecipeBuilder(IRecipeCategory<?> category) {
         GuiSessionState.setLastCategory(category);
+        GuiSessionState.setLastScreenType(GuiSessionState.LastScreenType.RECIPE_BUILDER);
         RecipeBuilderMenu menu = new RecipeBuilderMenu(0, minecraft.player.getInventory());
         RecipeBuilderScreen screen = new RecipeBuilderScreen(menu, minecraft.player.getInventory(), category);
         GuiSessionState.setLastScreen(screen);
@@ -249,5 +273,14 @@ public class ModMenuScreen extends Screen {
     private String displayName(String namespace) {
         return namespace.equals("minecraft") ? "Vanilla (Minecraft)"
                 : namespace.substring(0, 1).toUpperCase() + namespace.substring(1);
+    }
+
+    /** Returns true for JEI tag-browsing categories that are superseded by the Tag Editor. */
+    private static boolean isTagBrowserCategory(IRecipeCategory<?> cat) {
+        String uid   = cat.getRecipeType().getUid().toString().toLowerCase();
+        String title = cat.getTitle().getString().toLowerCase();
+        return uid.contains("item_tag") || uid.contains("block_tag") || uid.contains("fluid_tag")
+            || uid.contains("tag_viewer") || uid.contains("tagsviewer")
+            || title.equals("item tags") || title.equals("block tags") || title.equals("fluid tags");
     }
 }

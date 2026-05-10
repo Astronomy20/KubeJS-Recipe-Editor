@@ -13,6 +13,7 @@ import net.minecraft.world.item.ItemStack;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 import net.astronomy.kubejsrecipeeditor.gui.RecipeBuilderScreen;
 import net.astronomy.kubejsrecipeeditor.gui.SlotData;
+import net.astronomy.kubejsrecipeeditor.gui.TagEditorScreen;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -44,13 +45,36 @@ public class JeiIntegration implements IModPlugin {
         // Ghost ingredient handler: lets the user drag items from JEI into recipe slots
         registration.addGhostIngredientHandler(RecipeBuilderScreen.class, new RecipeBuilderGhostHandler());
 
+        // Ghost ingredient handler for the Tag Editor slot row
+        registration.addGhostIngredientHandler(TagEditorScreen.class, new IGhostIngredientHandler<TagEditorScreen>() {
+            @Override
+            public <I> List<Target<I>> getTargetsTyped(TagEditorScreen gui, ITypedIngredient<I> ingredient, boolean doStart) {
+                List<Target<I>> targets = new ArrayList<>();
+                if (!(ingredient.getIngredient() instanceof ItemStack)) return targets;
+                for (TagEditorScreen.SlotTarget st : gui.getSlotTargets()) {
+                    final int index = st.index();
+                    targets.add(new Target<>() {
+                        @Override public Rect2i getArea() { return new Rect2i(st.x(), st.y(), 18, 18); }
+                        @Override public void accept(I ing) {
+                            if (ing instanceof ItemStack stack) gui.setSlotIngredient(index, stack);
+                        }
+                    });
+                }
+                return targets;
+            }
+            @Override public void onComplete() {}
+        });
+
         // Container handler: tells JEI that RecipeBuilderScreen is a recognized container screen.
-        // JEI will show its ingredient panel alongside it, positioned to the right of the window.
         registration.addGuiContainerHandler(RecipeBuilderScreen.class, new IGuiContainerHandler<RecipeBuilderScreen>() {
             @Override
-            public List<Rect2i> getGuiExtraAreas(RecipeBuilderScreen screen) {
-                return List.of(); // no extra areas beyond the standard container window
-            }
+            public List<Rect2i> getGuiExtraAreas(RecipeBuilderScreen screen) { return List.of(); }
+        });
+
+        // Container handler for TagEditorScreen — makes JEI show its panel alongside the tag editor.
+        registration.addGuiContainerHandler(TagEditorScreen.class, new IGuiContainerHandler<TagEditorScreen>() {
+            @Override
+            public List<Rect2i> getGuiExtraAreas(TagEditorScreen screen) { return List.of(); }
         });
     }
 
