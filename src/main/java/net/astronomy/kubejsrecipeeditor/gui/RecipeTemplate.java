@@ -8,13 +8,21 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * Snapshot of a JEI recipe category layout: clean background drawable and captured slot anchors.
+ * Snapshot of a JEI recipe category layout: clean background drawable, captured slot anchors,
+ * input-slot count range (for variable-slot categories), and extra codec parameters.
  */
 public record RecipeTemplate(
         RecipeType<?> type,
         String title,
         @Nullable IDrawable background,
         @Nullable IDrawable icon,
+        /** All slots captured from the recipe that has the MOST input slots. */
         List<SlotCapturingLayoutBuilder.CapturedSlot> slots,
-        @Nullable Object exampleRecipe
+        @Nullable Object exampleRecipe,
+        /** Minimum INPUT slot count found across sampled recipes. */
+        int minInputSlots,
+        /** Maximum INPUT slot count found across sampled recipes. */
+        int maxInputSlots,
+        /** Extra primitive parameters detected from the codec JSON (e.g. loops, heatRequirement). */
+        List<ExtraParam> extraParams
 ) {}

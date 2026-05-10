@@ -13,6 +13,15 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.core.RegistryAccess;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.JsonOps;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 import net.astronomy.kubejsrecipeeditor.jei.JeiIntegration;
@@ -25,7 +34,11 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMenu> {
     /** Vanilla GUI atlas sprite — same frame as inventory/crafting slots (empty slot, no items). */
@@ -68,6 +81,18 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     // ─── Popup ────────────────────────────────────────────────────────────────
     private TagSelectionPopup activePopup = null;
 
+    // ─── Variable slots ───────────────────────────────────────────────────────
+    /** All INPUT captured slots from template, sorted top-left → bottom-right. */
+    private final List<SlotCapturingLayoutBuilder.CapturedSlot> allCapturedInputSlots = new ArrayList<>();
+    /** How many input slots are currently visible (grows via the "+" button). */
+    private int activeInputSlotCount = 0;
+    private int maxInputSlotCount    = 0;
+    private @Nullable Button addSlotButton;
+
+    // ─── Extra params ─────────────────────────────────────────────────────────
+    /** Current user-edited values for codec-detected extra params. */
+    private final Map<String, String> extraParamValues = new LinkedHashMap<>();
+
     // ═══════════════════════════════════════════════════════════════════════════
 
     public RecipeBuilderScreen(RecipeBuilderMenu menu, Inventory inventory, IRecipeCategory<?> category) {
@@ -77,12 +102,22 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         this.isCompostingCategory = detectComposting(category);
         this.isFuelCategory       = detectFuel(category);
 
+        // Slot-count range (stays valid across resize-triggered init() calls)
+        this.activeInputSlotCount = capturedLayout != null ? capturedLayout.minInputSlots() : 0;
+        this.maxInputSlotCount    = capturedLayout != null ? capturedLayout.maxInputSlots() : 0;
+
+        // Populate extra param values from template defaults (only on first construction)
+        if (capturedLayout != null) {
+            capturedLayout.extraParams().forEach(p -> extraParamValues.put(p.key(), p.defaultValueStr()));
+        }
+
         int bgW = recipePanelBgWidth();
         int bgH = recipePanelBgHeight();
-        boolean hasExtra = isCompostingCategory || isFuelCategory;
+        int extraParamCount = capturedLayout != null ? capturedLayout.extraParams().size() : 0;
+        int extraRows = (isCompostingCategory || isFuelCategory ? 1 : 0) + extraParamCount;
         this.imageWidth  = Math.max(240, bgW + PADDING * 2);
         this.imageHeight = TOP_BAR + PADDING + bgH + PADDING
-                + (hasExtra ? EXTRA_FIELD_H : 10) + BOTTOM_BAR;
+                + (extraRows > 0 ? EXTRA_FIELD_H * extraRows + 4 : 10) + BOTTOM_BAR;
     }
 
     private static boolean detectComposting(IRecipeCategory<?> cat) {
@@ -172,6 +207,14 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         addRenderableWidget(Button.builder(Component.literal("⌂"), btn -> goHome())
                 .pos(leftPos + 4, topPos + 4).size(20, 16).build());
 
+        // Variable-slot "+" button (positioned on the first hidden slot)
+        if (maxInputSlotCount > (capturedLayout != null ? capturedLayout.minInputSlots() : 0)) {
+            addSlotButton = Button.builder(Component.literal("+"), btn -> addNextInputSlot())
+                    .pos(0, 0).size(14, 14).build();
+            addRenderableWidget(addSlotButton);
+            rebuildAddSlotButton();
+        }
+
         // Extra field buttons for composting / fuel (shift-click = step 10)
         if (isCompostingCategory || isFuelCategory) {
             int fy = topPos + TOP_BAR + PADDING + recipePanelBgHeight() + PADDING + 4;
@@ -182,6 +225,32 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             addRenderableWidget(Button.builder(Component.literal("+"),
                             btn -> incrementField(Screen.hasShiftDown()))
                     .pos(cx + 14, fy).size(14, 14).build());
+        }
+
+        // Extra codec-param widgets (INT/FLOAT: -/+; BOOLEAN: toggle; STRING: read-only)
+        if (capturedLayout != null && !capturedLayout.extraParams().isEmpty()) {
+            int baseRow = (isCompostingCategory || isFuelCategory ? 1 : 0);
+            int cx = leftPos + imageWidth / 2;
+            for (int i = 0; i < capturedLayout.extraParams().size(); i++) {
+                ExtraParam ep = capturedLayout.extraParams().get(i);
+                int fy = topPos + TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
+                        + (baseRow + i) * EXTRA_FIELD_H + 4;
+                switch (ep.type()) {
+                    case INT, FLOAT -> {
+                        addRenderableWidget(Button.builder(Component.literal("-"),
+                                        btn -> adjustExtraParam(ep, -1, Screen.hasShiftDown()))
+                                .pos(cx - 28, fy).size(14, 14).build());
+                        addRenderableWidget(Button.builder(Component.literal("+"),
+                                        btn -> adjustExtraParam(ep, +1, Screen.hasShiftDown()))
+                                .pos(cx + 14, fy).size(14, 14).build());
+                    }
+                    case BOOLEAN -> addRenderableWidget(
+                            Button.builder(Component.literal(extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr())),
+                                    btn -> toggleExtraParam(ep, btn))
+                                    .pos(cx - 14, fy).size(28, 14).build());
+                    case STRING -> {} // display-only
+                }
+            }
         }
 
         // Bottom buttons
@@ -217,24 +286,37 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         statusColor   = 0xFFFFFF;
 
         List<SlotCapturingLayoutBuilder.CapturedSlot> caps = capturedLayout.slots();
-        List<SlotCapturingLayoutBuilder.CapturedSlot> inputCaps = caps.stream()
+
+        // Rebuild allCapturedInputSlots sorted top-left → bottom-right
+        allCapturedInputSlots.clear();
+        caps.stream()
                 .filter(s -> s.role() == RecipeIngredientRole.INPUT)
-                .toList();
+                .sorted(Comparator.comparingInt(SlotCapturingLayoutBuilder.CapturedSlot::y)
+                        .thenComparingInt(SlotCapturingLayoutBuilder.CapturedSlot::x))
+                .forEach(allCapturedInputSlots::add);
 
-        int minInputX = inputCaps.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
-        int minInputY = inputCaps.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
-        boolean inferCraftingGrid = usesCraftingInputGrid() && !inputCaps.isEmpty();
+        // Clamp activeInputSlotCount to valid range (handles re-init on resize)
+        activeInputSlotCount = Math.max(capturedLayout.minInputSlots(),
+                Math.min(activeInputSlotCount, allCapturedInputSlots.size()));
 
+        int minInputX = allCapturedInputSlots.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
+        int minInputY = allCapturedInputSlots.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
+        boolean inferCraftingGrid = usesCraftingInputGrid() && !allCapturedInputSlots.isEmpty();
+
+        int activeInputAdded = 0;
         for (SlotCapturingLayoutBuilder.CapturedSlot cap : caps) {
+            if (cap.role() == RecipeIngredientRole.INPUT) {
+                // Only add up to activeInputSlotCount input slots (sorted order preserved
+                // because allCapturedInputSlots was sorted before we began iterating caps)
+                int idxInSorted = allCapturedInputSlots.indexOf(cap);
+                if (idxInSorted >= activeInputSlotCount) continue;
+            }
             int absX = recipeX + cap.x();
             int absY = recipeY + cap.y();
-            int row = 0;
-            int col = 0;
+            int row = 0, col = 0;
             if (inferCraftingGrid && cap.role() == RecipeIngredientRole.INPUT) {
-                int dx = cap.x() - minInputX;
-                int dy = cap.y() - minInputY;
-                col = Math.max(0, (dx + CRAFT_CELL / 2) / CRAFT_CELL);
-                row = Math.max(0, (dy + CRAFT_CELL / 2) / CRAFT_CELL);
+                col = Math.max(0, (cap.x() - minInputX + CRAFT_CELL / 2) / CRAFT_CELL);
+                row = Math.max(0, (cap.y() - minInputY + CRAFT_CELL / 2) / CRAFT_CELL);
             }
             slots.add(new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col));
         }
@@ -316,13 +398,31 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         g.drawCenteredString(font, title, imageWidth / 2, 8, 0xFFFFFF);
 
-        // Extra field row label + current value (buttons are added as widgets in init)
+        // Composting / fuel row
         if (isCompostingCategory || isFuelCategory) {
             int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING + 7;
             String label = isCompostingCategory ? "Chance:" : "Burn time:";
             String value = isCompostingCategory ? compostChancePct + "%" : fuelBurnSecs + "s";
             g.drawString(font, label, PADDING + 2, fy, 0xFFAAAAAA, false);
             g.drawCenteredString(font, value, imageWidth / 2, fy, 0xFFFFFFFF);
+        }
+
+        // Extra codec-param rows
+        if (capturedLayout != null && !capturedLayout.extraParams().isEmpty()) {
+            int baseRow = (isCompostingCategory || isFuelCategory ? 1 : 0);
+            for (int i = 0; i < capturedLayout.extraParams().size(); i++) {
+                ExtraParam ep = capturedLayout.extraParams().get(i);
+                int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
+                        + (baseRow + i) * EXTRA_FIELD_H + 7;
+                String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+                g.drawString(font, ep.key() + ":", PADDING + 2, fy, 0xFFAAAAAA, false);
+                if (ep.type() == ExtraParam.Type.INT || ep.type() == ExtraParam.Type.FLOAT) {
+                    g.drawCenteredString(font, val, imageWidth / 2, fy, 0xFFFFFFFF);
+                } else if (ep.type() == ExtraParam.Type.STRING) {
+                    g.drawString(font, val, imageWidth / 2 - 14, fy, 0xFFFFFF55, false);
+                }
+                // BOOLEAN value is shown on the toggle button itself
+            }
         }
 
         if (!statusMessage.isEmpty()) {
@@ -705,14 +805,153 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
     private String buildCustom(ResourceLocation uid, String output, List<SlotData> inputs) {
+        // Prefer codec-template approach: uses the mod's actual field names (e.g. "results",
+        // "ingredient") and preserves non-ingredient fields (sequence, loops, etc.) verbatim.
+        if (capturedLayout != null && capturedLayout.exampleRecipe() instanceof RecipeHolder<?> holder) {
+            try {
+                String result = buildCustomViaCodec(uid, holder, output, inputs);
+                if (result != null) return result;
+            } catch (Exception e) {
+                KubeJsRecipeEditor.LOGGER.debug("Codec-based export failed, using fallback: {}", e.getMessage());
+            }
+        }
+
+        // Fallback: hardcoded structure (vanilla-style, always works)
         StringBuilder sb = new StringBuilder("    event.custom({\n");
         sb.append("        \"type\": \"").append(uid).append("\",\n");
         sb.append("        \"ingredients\": [\n");
         for (SlotData s : inputs) if (!s.isEmpty()) sb.append("            { \"item\": ").append(s.toKubeJs()).append(" },\n");
         sb.append("        ],\n");
-        sb.append("        \"result\": { \"item\": ").append(output).append(" }\n    })");
+        sb.append("        \"result\": { \"item\": ").append(output).append(" }");
+        if (capturedLayout != null) {
+            for (ExtraParam ep : capturedLayout.extraParams()) {
+                String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+                String jsonVal = ep.type() == ExtraParam.Type.STRING ? "\"" + val + "\"" : val;
+                sb.append(",\n        \"").append(ep.key()).append("\": ").append(jsonVal);
+            }
+        }
+        sb.append("\n    })");
         return sb.toString();
     }
+
+    /**
+     * Builds {@code event.custom({...})} using the example recipe's codec JSON as a structural
+     * template. Only the ingredient/result sub-trees are replaced with user-provided values;
+     * every other field (sequence steps, loops, heatRequirement, etc.) is kept verbatim from
+     * the codec — which means the emitted JSON will match exactly what the target mod expects.
+     *
+     * @return formatted JS string, or {@code null} if the codec cannot be used
+     */
+    @SuppressWarnings("unchecked")
+    private @Nullable String buildCustomViaCodec(
+            ResourceLocation uid, RecipeHolder<?> holder, String outputKubeJs, List<SlotData> inputs) {
+
+        RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
+        DynamicOps<JsonElement> ops = regs.createSerializationContext(JsonOps.INSTANCE);
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        JsonElement encoded = (JsonElement) ((com.mojang.serialization.Codec) holder.value().getSerializer().codec())
+                .encodeStart(ops, holder.value())
+                .getOrThrow();
+        if (!encoded.isJsonObject()) return null;
+
+        JsonObject json = encoded.getAsJsonObject().deepCopy();
+
+        // ── Patch ingredient fields ─────────────────────────────────────────
+        if (json.has("ingredients")) {
+            json.add("ingredients", buildIngredientArray(inputs));
+        } else if (json.has("ingredient")) {
+            // single-ingredient slot
+            SlotData first = inputs.stream().filter(s -> !s.isEmpty()).findFirst().orElse(null);
+            json.add("ingredient", first != null ? buildIngredientElement(first) : new JsonObject());
+        }
+
+        // ── Patch result fields ─────────────────────────────────────────────
+        // Keep count / nbt from the example so the mod serializer is happy;
+        // only override the "item" / "id" key.
+        String outId = stripKubeJsWrappers(outputKubeJs);
+        if (json.has("results") && json.get("results").isJsonArray()) {
+            JsonArray results = new JsonArray();
+            JsonObject outObj = new JsonObject();
+            outObj.addProperty("item", outId);
+            SlotData outSlot = slots.stream()
+                    .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
+                    .findFirst().orElse(null);
+            if (outSlot != null && outSlot.count > 1) outObj.addProperty("count", outSlot.count);
+            results.add(outObj);
+            json.add("results", results);
+        } else if (json.has("result")) {
+            if (json.get("result").isJsonObject()) {
+                JsonObject outObj = json.getAsJsonObject("result").deepCopy();
+                outObj.addProperty("item", outId);
+                SlotData outSlot = slots.stream()
+                        .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
+                        .findFirst().orElse(null);
+                if (outSlot != null && outSlot.count > 1) outObj.addProperty("count", outSlot.count);
+                json.add("result", outObj);
+            } else {
+                json.addProperty("result", outId);
+            }
+        }
+
+        // ── Apply user-edited extra param values ────────────────────────────
+        if (capturedLayout != null) {
+            for (ExtraParam ep : capturedLayout.extraParams()) {
+                if (!json.has(ep.key())) continue;
+                String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+                switch (ep.type()) {
+                    case INT     -> json.addProperty(ep.key(), Integer.parseInt(val));
+                    case FLOAT   -> json.addProperty(ep.key(), Double.parseDouble(val));
+                    case BOOLEAN -> json.addProperty(ep.key(), Boolean.parseBoolean(val));
+                    case STRING  -> json.addProperty(ep.key(), val);
+                }
+            }
+        }
+
+        // ── Format as event.custom({...}) ───────────────────────────────────
+        com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+        String pretty = gson.toJson(json);
+        String indented = pretty.lines()
+                .map(line -> "        " + line)
+                .collect(Collectors.joining("\n"));
+        return "    event.custom(\n" + indented + "\n    )";
+    }
+
+    /** Builds a JsonArray of ingredient objects from non-empty input slots. */
+    private JsonArray buildIngredientArray(List<SlotData> inputs) {
+        JsonArray arr = new JsonArray();
+        for (SlotData s : inputs) {
+            if (!s.isEmpty()) arr.add(buildIngredientElement(s));
+        }
+        return arr;
+    }
+
+    /** Builds a single ingredient JsonElement for one slot (item or tag). */
+    private JsonElement buildIngredientElement(SlotData s) {
+        JsonObject obj = new JsonObject();
+        if (s.useTag && s.selectedTag != null) {
+            obj.addProperty("tag", s.selectedTag.toString());
+        } else {
+            obj.addProperty("item", s.ingredient.getItem()
+                    .builtInRegistryHolder().key().location().toString());
+        }
+        return obj;
+    }
+
+    /**
+     * Strips KubeJS wrappers to get a plain {@code namespace:path} item ID.
+     * Handles: {@code 'id'}, {@code "id"}, {@code Item.of('id', N)}
+     */
+    private static String stripKubeJsWrappers(String s) {
+        s = s.trim();
+        // Item.of('id', count) or Item.of("id", count)
+        if (s.startsWith("Item.of(")) {
+            int q1 = s.indexOf('\'');
+            int q2 = q1 < 0 ? -1 : s.indexOf('\'', q1 + 1);
+            if (q1 >= 0 && q2 > q1) return s.substring(q1 + 1, q2);
+        }
+        return s.replace("'", "").replace("\"", "");
+    }
+
 
     private String buildRecipeId(ResourceLocation uid, SlotData outputSlot) {
         String type = uid.getPath();
@@ -761,5 +1000,58 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     private Path gameDir() {
         return Minecraft.getInstance().gameDirectory.toPath();
+    }
+
+    // ─── Variable slot helpers ─────────────────────────────────────────────────
+
+    private void addNextInputSlot() {
+        if (activeInputSlotCount >= maxInputSlotCount || activeInputSlotCount >= allCapturedInputSlots.size()) return;
+        SlotCapturingLayoutBuilder.CapturedSlot cap = allCapturedInputSlots.get(activeInputSlotCount);
+        int absX = recipeX + cap.x();
+        int absY = recipeY + cap.y();
+        int col = 0, row = 0;
+        if (usesCraftingInputGrid() && !allCapturedInputSlots.isEmpty()) {
+            int minX = allCapturedInputSlots.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
+            int minY = allCapturedInputSlots.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
+            col = Math.max(0, (cap.x() - minX + CRAFT_CELL / 2) / CRAFT_CELL);
+            row = Math.max(0, (cap.y() - minY + CRAFT_CELL / 2) / CRAFT_CELL);
+        }
+        slots.add(new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col));
+        activeInputSlotCount++;
+        rebuildAddSlotButton();
+    }
+
+    private void rebuildAddSlotButton() {
+        if (addSlotButton == null) return;
+        boolean canAdd = activeInputSlotCount < maxInputSlotCount
+                && activeInputSlotCount < allCapturedInputSlots.size();
+        addSlotButton.visible = canAdd;
+        if (canAdd) {
+            SlotCapturingLayoutBuilder.CapturedSlot next = allCapturedInputSlots.get(activeInputSlotCount);
+            addSlotButton.setX(recipeX + next.x() + 2);
+            addSlotButton.setY(recipeY + next.y() + 2);
+        }
+    }
+
+    // ─── Extra param helpers ───────────────────────────────────────────────────
+
+    private void adjustExtraParam(ExtraParam ep, int direction, boolean shift) {
+        try {
+            String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+            if (ep.type() == ExtraParam.Type.INT) {
+                int step = shift ? 10 : 1;
+                extraParamValues.put(ep.key(), String.valueOf(Integer.parseInt(cur) + direction * step));
+            } else if (ep.type() == ExtraParam.Type.FLOAT) {
+                double step = shift ? 1.0 : 0.1;
+                extraParamValues.put(ep.key(), String.format("%.2f", Double.parseDouble(cur) + direction * step));
+            }
+        } catch (NumberFormatException ignored) {}
+    }
+
+    private void toggleExtraParam(ExtraParam ep, Button btn) {
+        String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+        String next = "true".equalsIgnoreCase(cur) ? "false" : "true";
+        extraParamValues.put(ep.key(), next);
+        btn.setMessage(Component.literal(next));
     }
 }
