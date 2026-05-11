@@ -23,7 +23,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
+import net.astronomy.kubejsrecipeeditor.engine.RecipeJsonBuilder;
 import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
+import net.astronomy.kubejsrecipeeditor.gui.GuiDescriptor;
 import net.astronomy.kubejsrecipeeditor.jei.JeiIntegration;
 import net.astronomy.kubejsrecipeeditor.jei.SlotCapturingLayoutBuilder;
 
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -163,18 +166,16 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
     private int recipePanelBgWidth() {
+        if (isCompostingCategory || isFuelCategory) return CRAFT_CELL;
         IDrawable bg = resolveDrawableBackground();
-        if (bg != null) {
-            return bg.getWidth();
-        }
+        if (bg != null) return bg.getWidth();
         return category.getWidth();
     }
 
     private int recipePanelBgHeight() {
+        if (isCompostingCategory || isFuelCategory) return CRAFT_CELL;
         IDrawable bg = resolveDrawableBackground();
-        if (bg != null) {
-            return bg.getHeight();
-        }
+        if (bg != null) return bg.getHeight();
         return category.getHeight();
     }
 
@@ -248,6 +249,12 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                             Button.builder(Component.literal(extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr())),
                                     btn -> toggleExtraParam(ep, btn))
                                     .pos(cx - 14, fy).size(28, 14).build());
+                    case ENUM -> {
+                        String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+                        addRenderableWidget(
+                                Button.builder(Component.literal(cur), btn -> cycleEnumParam(ep, btn))
+                                        .pos(cx - 40, fy).size(80, 14).build());
+                    }
                     case STRING -> {} // display-only
                 }
             }
@@ -273,6 +280,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
     private void buildSlotsFromCapture() {
+        // Composting and fuel: single INPUT slot centered in the window.
+        if (isCompostingCategory || isFuelCategory) {
+            int slotX = leftPos + (imageWidth - CRAFT_CELL) / 2;
+            int slotY = topPos + TOP_BAR + PADDING + 8;
+            slots.add(new SlotData(slotX, slotY, CRAFT_CELL, CRAFT_CELL,
+                    RecipeIngredientRole.INPUT, 0, 0));
+            return;
+        }
+
         if (capturedLayout == null) {
             if (JeiIntegration.isRuntimeAvailable()) {
                 statusMessage = "Layout unavailable — try Resources Reload (F3+T)";
@@ -318,7 +334,22 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 col = Math.max(0, (cap.x() - minInputX + CRAFT_CELL / 2) / CRAFT_CELL);
                 row = Math.max(0, (cap.y() - minInputY + CRAFT_CELL / 2) / CRAFT_CELL);
             }
-            slots.add(new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col));
+            SlotData newSlot = new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col);
+            newSlot.jeiRelX = cap.x();
+            newSlot.jeiRelY = cap.y();
+            slots.add(newSlot);
+        }
+
+        // If no OUTPUT slot was captured (e.g. grindstone uses RENDER_ONLY for output in JEI),
+        // add a synthetic one to the right of the recipe panel.
+        if (!isCompostingCategory && !isFuelCategory) {
+            boolean hasOutput = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.OUTPUT);
+            if (!hasOutput) {
+                int synthX = recipeX + recipePanelBgWidth() + 8;
+                int synthY = recipeY + (recipePanelBgHeight() - CRAFT_CELL) / 2;
+                slots.add(new SlotData(synthX, synthY, CRAFT_CELL, CRAFT_CELL,
+                        RecipeIngredientRole.OUTPUT, 0, 0));
+            }
         }
     }
 
@@ -398,6 +429,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         g.drawCenteredString(font, title, imageWidth / 2, 8, 0xFFFFFF);
 
+        // Composting / fuel: hint when slot is empty
+        if (isCompostingCategory || isFuelCategory) {
+            boolean slotFilled = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty());
+            if (!slotFilled && statusMessage.isEmpty()) {
+                g.drawCenteredString(font, "§7Drag an item from JEI", imageWidth / 2,
+                        TOP_BAR + PADDING + CRAFT_CELL + 4, 0xFFAAAAAA);
+            }
+        }
+
         // Composting / fuel row
         if (isCompostingCategory || isFuelCategory) {
             int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING + 7;
@@ -421,7 +461,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 } else if (ep.type() == ExtraParam.Type.STRING) {
                     g.drawString(font, val, imageWidth / 2 - 14, fy, 0xFFFFFF55, false);
                 }
-                // BOOLEAN value is shown on the toggle button itself
+                // BOOLEAN and ENUM values are shown on the toggle/cycle button itself
             }
         }
 
@@ -752,14 +792,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private String buildComposting() {
         String item = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty())
                 .findFirst().map(SlotData::toKubeJs).orElse("'minecraft:air'");
-        String chance = String.format("%.2f", compostChancePct / 100.0);
+        String chance = String.format(Locale.ROOT, "%.2f", compostChancePct / 100.0);
         return "    event.add(" + item + ", " + chance + ")";
     }
 
     private String buildFuel() {
         String item = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty())
                 .findFirst().map(SlotData::toKubeJs).orElse("'minecraft:air'");
-        return "    event.add(" + item + ", " + (fuelBurnSecs * 20) + ")";
+        int ticks = fuelBurnSecs * 20;
+        return "    event.modify(" + item + ", item => { item.burnTime = " + ticks + " })";
     }
 
     private String buildCrafting(String output, List<SlotData> inputs) {
@@ -793,45 +834,92 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private String buildCooking(String method, String output, List<SlotData> inputs) {
         String input = inputs.stream().filter(s -> !s.isEmpty()).findFirst()
                 .map(SlotData::toKubeJs).orElse("'minecraft:air'");
-        return "    event." + method + "(" + output + ", " + input + ")";
+        StringBuilder sb = new StringBuilder("    event.").append(method)
+                .append("(").append(output).append(", ").append(input).append(")");
+
+        if (method.equals("stonecutting")) return sb.toString();
+
+        int defaultTime = switch (method) {
+            case "blasting", "smoking" -> 100;
+            case "campfireCooking"     -> 600;
+            default                    -> 200;
+        };
+
+        // Try all codec field name variants (MC/NeoForge differ across versions)
+        String cookingTimeVal = extraParamValues.get("cookingtime");
+        if (cookingTimeVal == null) cookingTimeVal = extraParamValues.get("cookingTime");
+        if (cookingTimeVal == null) cookingTimeVal = extraParamValues.get("cooking_time");
+        int cookingTime = defaultTime;
+        if (cookingTimeVal != null) {
+            try { cookingTime = Integer.parseInt(cookingTimeVal); } catch (NumberFormatException ignored) {}
+        }
+        if (cookingTime != defaultTime) sb.append(".cookingTime(").append(cookingTime).append(")");
+
+        String xpVal = extraParamValues.get("xp");
+        if (xpVal == null) xpVal = extraParamValues.get("experience");
+        double xp = 0.0;
+        if (xpVal != null) {
+            try { xp = Double.parseDouble(xpVal); } catch (NumberFormatException ignored) {}
+        }
+        if (xp != 0.0) sb.append(".xp(").append(String.format(Locale.ROOT, "%.2f", xp)).append(")");
+
+        return sb.toString();
     }
 
     private String buildSmithing(String output) {
+        // JEI may assign the upgrade template to CATALYST role; base/addition use INPUT
+        String t = slots.stream()
+                .filter(s -> s.role == RecipeIngredientRole.CATALYST && !s.isEmpty())
+                .findFirst().map(SlotData::toKubeJs).orElse("'minecraft:air'");
         List<SlotData> ins = slots.stream().filter(s -> s.role == RecipeIngredientRole.INPUT).toList();
-        String t = ins.size() > 0 && !ins.get(0).isEmpty() ? ins.get(0).toKubeJs() : "'minecraft:air'";
-        String b = ins.size() > 1 && !ins.get(1).isEmpty() ? ins.get(1).toKubeJs() : "'minecraft:air'";
-        String a = ins.size() > 2 && !ins.get(2).isEmpty() ? ins.get(2).toKubeJs() : "'minecraft:air'";
+        String b = ins.size() > 0 && !ins.get(0).isEmpty() ? ins.get(0).toKubeJs() : "'minecraft:air'";
+        String a = ins.size() > 1 && !ins.get(1).isEmpty() ? ins.get(1).toKubeJs() : "'minecraft:air'";
+        // If no CATALYST slot was found, the template occupies INPUT[0] — shift the list
+        if (t.equals("'minecraft:air'") && !b.equals("'minecraft:air'")) {
+            t = b;
+            b = a;
+            a = ins.size() > 2 && !ins.get(2).isEmpty() ? ins.get(2).toKubeJs() : "'minecraft:air'";
+        }
         return "    event.smithing(\n        " + t + ",\n        " + b + ",\n        " + a + ",\n        " + output + "\n    )";
     }
 
     private String buildCustom(ResourceLocation uid, String output, List<SlotData> inputs) {
-        // Prefer codec-template approach: uses the mod's actual field names (e.g. "results",
-        // "ingredient") and preserves non-ingredient fields (sequence, loops, etc.) verbatim.
+        // First choice: RecipeJsonBuilder using GuiDescriptor (fluid-aware, schema-driven)
+        GuiDescriptor descriptor = capturedLayout != null ? capturedLayout.guiDescriptor() : null;
+        if (descriptor != null && capturedLayout.exampleRecipe() instanceof RecipeHolder<?> holder) {
+            try {
+                RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
+                DynamicOps<JsonElement> ops = regs.createSerializationContext(JsonOps.INSTANCE);
+                @SuppressWarnings({"rawtypes", "unchecked"})
+                JsonElement encoded = (JsonElement) ((com.mojang.serialization.Codec) holder.value().getSerializer().codec())
+                        .encodeStart(ops, holder.value()).getOrThrow();
+                if (encoded.isJsonObject()) {
+                    JsonObject json = RecipeJsonBuilder.build(
+                            encoded.getAsJsonObject(), descriptor, slots, extraParamValues);
+                    com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+                    String indented = gson.toJson(json).lines()
+                            .map(line -> "        " + line)
+                            .collect(Collectors.joining("\n"));
+                    return "    event.custom(\n" + indented + "\n    )";
+                }
+            } catch (Exception e) {
+                KubeJsRecipeEditor.LOGGER.debug("RecipeJsonBuilder failed, falling back to codec approach: {}", e.getMessage());
+            }
+        }
+
+        // Fallback: codec-template approach (preserves most fields, does not handle fluids in inputs)
         if (capturedLayout != null && capturedLayout.exampleRecipe() instanceof RecipeHolder<?> holder) {
             try {
                 String result = buildCustomViaCodec(uid, holder, output, inputs);
                 if (result != null) return result;
             } catch (Exception e) {
-                KubeJsRecipeEditor.LOGGER.debug("Codec-based export failed, using fallback: {}", e.getMessage());
+                KubeJsRecipeEditor.LOGGER.debug("Codec-based export failed, using hardcoded fallback: {}", e.getMessage());
             }
         }
 
-        // Fallback: hardcoded structure (vanilla-style, always works)
-        StringBuilder sb = new StringBuilder("    event.custom({\n");
-        sb.append("        \"type\": \"").append(uid).append("\",\n");
-        sb.append("        \"ingredients\": [\n");
-        for (SlotData s : inputs) if (!s.isEmpty()) sb.append("            { \"item\": ").append(s.toKubeJs()).append(" },\n");
-        sb.append("        ],\n");
-        sb.append("        \"result\": { \"item\": ").append(output).append(" }");
-        if (capturedLayout != null) {
-            for (ExtraParam ep : capturedLayout.extraParams()) {
-                String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
-                String jsonVal = ep.type() == ExtraParam.Type.STRING ? "\"" + val + "\"" : val;
-                sb.append(",\n        \"").append(ep.key()).append("\": ").append(jsonVal);
-            }
-        }
-        sb.append("\n    })");
-        return sb.toString();
+        // No reliable template available — fail loudly rather than silently write wrong JSON
+        throw new IllegalStateException(
+                "codec unavailable for " + uid + " — try reloading resources (F3+T)");
     }
 
     /**
@@ -846,63 +934,150 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private @Nullable String buildCustomViaCodec(
             ResourceLocation uid, RecipeHolder<?> holder, String outputKubeJs, List<SlotData> inputs) {
 
-        RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
-        DynamicOps<JsonElement> ops = regs.createSerializationContext(JsonOps.INSTANCE);
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        JsonElement encoded = (JsonElement) ((com.mojang.serialization.Codec) holder.value().getSerializer().codec())
-                .encodeStart(ops, holder.value())
-                .getOrThrow();
-        if (!encoded.isJsonObject()) return null;
-
-        JsonObject json = encoded.getAsJsonObject().deepCopy();
+        // Use the merged super-template if available; it covers ALL fields found across any sampled
+        // recipe of this type (including optional fields like heat_requirement). Falls back to
+        // reading the raw recipe JSON from the server data pack, then to live codec encoding.
+        JsonObject json;
+        if (capturedLayout != null && capturedLayout.exportTemplate() != null) {
+            json = capturedLayout.exportTemplate().deepCopy();
+        } else {
+            // Try reading the raw JSON from the server data pack (works for all mods, singleplayer)
+            JsonObject fromRM = readSingleRecipeFromRM(holder.id());
+            if (fromRM != null) {
+                json = fromRM;
+            } else {
+                // Last resort: live codec encoding
+                RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
+                DynamicOps<JsonElement> ops = regs.createSerializationContext(JsonOps.INSTANCE);
+                @SuppressWarnings({"rawtypes", "unchecked"})
+                JsonElement encoded = (JsonElement) ((com.mojang.serialization.Codec) holder.value().getSerializer().codec())
+                        .encodeStart(ops, holder.value())
+                        .getOrThrow();
+                if (!encoded.isJsonObject()) return null;
+                json = encoded.getAsJsonObject().deepCopy();
+            }
+        }
 
         // ── Patch ingredient fields ─────────────────────────────────────────
         if (json.has("ingredients")) {
-            json.add("ingredients", buildIngredientArray(inputs));
+            JsonArray origIngredients = json.getAsJsonArray("ingredients");
+            json.add("ingredients", buildIngredientArraySmart(origIngredients, inputs));
         } else if (json.has("ingredient")) {
-            // single-ingredient slot
             SlotData first = inputs.stream().filter(s -> !s.isEmpty()).findFirst().orElse(null);
             json.add("ingredient", first != null ? buildIngredientElement(first) : new JsonObject());
+        } else if (json.has("base") || json.has("addition")) {
+            // minecraft:grindstone style
+            List<SlotData> nonEmpty = inputs.stream().filter(s -> !s.isEmpty()).toList();
+            if (json.has("base"))
+                json.add("base", !nonEmpty.isEmpty()
+                        ? buildIngredientElement(nonEmpty.get(0)) : new JsonObject());
+            if (json.has("addition"))
+                json.add("addition", nonEmpty.size() > 1
+                        ? buildIngredientElement(nonEmpty.get(1)) : new JsonObject());
+        } else if (json.has("main_input") || json.has("extra_input")) {
+            // mekanism:combining — two named item inputs
+            List<SlotData> nonEmpty = inputs.stream().filter(s -> !s.isEmpty()).toList();
+            if (json.has("main_input") && !nonEmpty.isEmpty()) {
+                JsonObject obj = json.getAsJsonObject("main_input").deepCopy();
+                patchIngredientIntoObject(obj, nonEmpty.get(0));
+                json.add("main_input", obj);
+            }
+            if (json.has("extra_input") && nonEmpty.size() > 1) {
+                JsonObject obj = json.getAsJsonObject("extra_input").deepCopy();
+                patchIngredientIntoObject(obj, nonEmpty.get(1));
+                json.add("extra_input", obj);
+            }
+        } else if (json.has("item_input") && json.get("item_input").isJsonObject()) {
+            // mekanism mixed recipes (item_input + chemical_input) — only patch the item part
+            SlotData first = inputs.stream().filter(s -> !s.isEmpty()).findFirst().orElse(null);
+            if (first != null) {
+                JsonObject obj = json.getAsJsonObject("item_input").deepCopy();
+                patchIngredientIntoObject(obj, first);
+                json.add("item_input", obj);
+            }
+        } else if (json.has("input") && json.get("input").isJsonObject()) {
+            // mekanism:crushing, enriching, etc. — single item input (direct or nested wrapper)
+            JsonObject inputObj = json.getAsJsonObject("input");
+            SlotData first = inputs.stream().filter(s -> !s.isEmpty()).findFirst().orElse(null);
+            if (first != null) {
+                if (isItemIngredientObject(inputObj)) {
+                    // Direct format: {"item": "..."} or {"tag": "..."}
+                    JsonObject obj = inputObj.deepCopy();
+                    patchIngredientIntoObject(obj, first);
+                    json.add("input", obj);
+                } else if (inputObj.has("ingredient") && inputObj.get("ingredient").isJsonObject()) {
+                    // Mekanism nested format: {"ingredient": {"item": "..."}}
+                    JsonObject obj = inputObj.deepCopy();
+                    JsonObject inner = obj.getAsJsonObject("ingredient").deepCopy();
+                    patchIngredientIntoObject(inner, first);
+                    obj.add("ingredient", inner);
+                    json.add("input", obj);
+                }
+            }
         }
 
         // ── Patch result fields ─────────────────────────────────────────────
-        // Keep count / nbt from the example so the mod serializer is happy;
-        // only override the "item" / "id" key.
+        // Detect whether the mod uses "id" (MC 1.21+, Create, Mekanism) or "item" as the item key.
         String outId = stripKubeJsWrappers(outputKubeJs);
+        SlotData outSlot = slots.stream()
+                .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
+                .findFirst().orElse(null);
+
         if (json.has("results") && json.get("results").isJsonArray()) {
+            JsonArray origResults = json.getAsJsonArray("results");
+            String itemKey = detectItemKey(origResults.isEmpty() ? null
+                    : origResults.get(0).isJsonObject() ? origResults.get(0).getAsJsonObject() : null);
             JsonArray results = new JsonArray();
             JsonObject outObj = new JsonObject();
-            outObj.addProperty("item", outId);
-            SlotData outSlot = slots.stream()
-                    .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
-                    .findFirst().orElse(null);
+            outObj.addProperty(itemKey, outId);
             if (outSlot != null && outSlot.count > 1) outObj.addProperty("count", outSlot.count);
+            String chanceVal = extraParamValues.get("result_chance");
+            if (chanceVal != null) {
+                try { outObj.addProperty("chance", Double.parseDouble(chanceVal)); }
+                catch (NumberFormatException ignored) {}
+            }
             results.add(outObj);
             json.add("results", results);
         } else if (json.has("result")) {
             if (json.get("result").isJsonObject()) {
                 JsonObject outObj = json.getAsJsonObject("result").deepCopy();
-                outObj.addProperty("item", outId);
-                SlotData outSlot = slots.stream()
-                        .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
-                        .findFirst().orElse(null);
+                outObj.addProperty(detectItemKey(outObj), outId);
                 if (outSlot != null && outSlot.count > 1) outObj.addProperty("count", outSlot.count);
                 json.add("result", outObj);
             } else {
                 json.addProperty("result", outId);
             }
+        } else if (json.has("output")) {
+            // mekanism:crushing, combining, etc. — single "output" object
+            if (json.get("output").isJsonObject()) {
+                JsonObject outObj = json.getAsJsonObject("output").deepCopy();
+                outObj.addProperty(detectItemKey(outObj), outId);
+                if (outSlot != null && outSlot.count > 1) outObj.addProperty("count", outSlot.count);
+                json.add("output", outObj);
+            } else {
+                json.addProperty("output", outId);
+            }
         }
 
         // ── Apply user-edited extra param values ────────────────────────────
+        // NOTE: no "continue if key absent" — we WANT to add optional fields (e.g. heat_requirement)
+        // even when the template example recipe didn't have them.
         if (capturedLayout != null) {
             for (ExtraParam ep : capturedLayout.extraParams()) {
-                if (!json.has(ep.key())) continue;
                 String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
                 switch (ep.type()) {
                     case INT     -> json.addProperty(ep.key(), Integer.parseInt(val));
-                    case FLOAT   -> json.addProperty(ep.key(), Double.parseDouble(val));
+                    case FLOAT   -> {
+                        // "result_chance" is a virtual param applied to results[], not a top-level field
+                        if (!ep.key().equals("result_chance"))
+                            json.addProperty(ep.key(), Double.parseDouble(val));
+                    }
                     case BOOLEAN -> json.addProperty(ep.key(), Boolean.parseBoolean(val));
                     case STRING  -> json.addProperty(ep.key(), val);
+                    case ENUM    -> {
+                        if ("(none)".equals(val)) json.remove(ep.key());
+                        else json.addProperty(ep.key(), val);
+                    }
                 }
             }
         }
@@ -938,6 +1113,65 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
     /**
+     * Smart version of {@link #buildIngredientArray}: iterates the original codec array and
+     * replaces only item/tag entries with user inputs (in order), keeping fluid/chemical/special
+     * entries verbatim. Ensures fluids in Create mixing recipes are never lost.
+     */
+    private JsonArray buildIngredientArraySmart(JsonArray original, List<SlotData> inputs) {
+        List<SlotData> nonEmpty = inputs.stream().filter(s -> !s.isEmpty()).toList();
+        int userIdx = 0;
+        JsonArray result = new JsonArray();
+        for (JsonElement entry : original) {
+            if (entry.isJsonObject() && isItemIngredientEntry(entry.getAsJsonObject())) {
+                if (userIdx < nonEmpty.size()) {
+                    result.add(buildIngredientElement(nonEmpty.get(userIdx++)));
+                } else {
+                    result.add(entry); // no user input for this slot — keep original
+                }
+            } else {
+                result.add(entry); // fluid / chemical / special — keep verbatim
+            }
+        }
+        return result;
+    }
+
+    /** Returns true if {@code obj} is a plain item/tag ingredient (replaceable by user input). */
+    private static boolean isItemIngredientEntry(JsonObject obj) {
+        if (obj.has("fluid") || obj.has("chemical")) return false;
+        if (obj.has("amount")) return false; // neoforge fluid/tag-with-amount
+        return true;
+    }
+
+    /**
+     * Patches an existing ingredient JsonObject in-place: removes old item/tag keys and writes
+     * the new ones from {@code s}. Preserves all other fields (e.g. Mekanism's "count").
+     */
+    private void patchIngredientIntoObject(JsonObject obj, SlotData s) {
+        obj.remove("item");
+        obj.remove("tag");
+        if (s.useTag && s.selectedTag != null) {
+            obj.addProperty("tag", s.selectedTag.toString());
+        } else {
+            obj.addProperty("item", s.ingredient.getItem()
+                    .builtInRegistryHolder().key().location().toString());
+        }
+    }
+
+    /** Returns true if {@code obj} is an item ingredient (has "item" or "tag" key, not a chemical/fluid). */
+    private static boolean isItemIngredientObject(JsonObject obj) {
+        return obj.has("item") || obj.has("tag");
+    }
+
+    /**
+     * Detects whether a result/output JsonObject uses "id" (MC 1.21+, Create, Mekanism) or
+     * "item" as the item ID key. Returns "item" if {@code obj} is null or ambiguous.
+     */
+    private static String detectItemKey(@Nullable JsonObject obj) {
+        if (obj != null && obj.has("id") && !obj.has("item")) return "id";
+        return "item";
+    }
+
+    /**
      * Strips KubeJS wrappers to get a plain {@code namespace:path} item ID.
      * Handles: {@code 'id'}, {@code "id"}, {@code Item.of('id', N)}
      */
@@ -953,6 +1187,24 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
 
+    /** Reads the raw recipe JSON from the server's data pack (singleplayer only, any mod). */
+    @Nullable
+    private static JsonObject readSingleRecipeFromRM(ResourceLocation recipeId) {
+        net.minecraft.server.MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server == null) return null;
+        ResourceLocation jsonPath = ResourceLocation.fromNamespaceAndPath(
+                recipeId.getNamespace(), "recipe/" + recipeId.getPath() + ".json");
+        try {
+            return server.getResourceManager().getResource(jsonPath)
+                    .map(res -> {
+                        try (java.io.InputStreamReader r = new java.io.InputStreamReader(res.open())) {
+                            JsonElement el = com.google.gson.JsonParser.parseReader(r);
+                            return el.isJsonObject() ? el.getAsJsonObject() : null;
+                        } catch (Exception e) { return null; }
+                    }).orElse(null);
+        } catch (Exception e) { return null; }
+    }
+
     private String buildRecipeId(ResourceLocation uid, SlotData outputSlot) {
         String type = uid.getPath();
         if (outputSlot == null || outputSlot.isEmpty()) return "kjs:" + type + "/unnamed";
@@ -963,7 +1215,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     private Path resolveOutputFile() {
         if (isCompostingCategory) return gameDir().resolve("kubejs/server_scripts/composting.js");
-        if (isFuelCategory)       return gameDir().resolve("kubejs/server_scripts/fuel.js");
+        if (isFuelCategory)       return gameDir().resolve("kubejs/startup_scripts/fuel.js");
         ResourceLocation uid = category.getRecipeType().getUid();
         String folder = uid.getNamespace().equals("minecraft") ? "vanilla" : uid.getNamespace();
         return gameDir().resolve("kubejs/server_scripts/" + folder + "/" + uid.getPath() + ".js");
@@ -977,7 +1229,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         }
         if (isFuelCategory) {
             return "// Auto-generated by KubeJS Recipe Editor\n// Generated: " + ts
-                    + "\n\nServerEvents.fuelBurnTime(event => {\n\n})\n";
+                    + "\n\nItemEvents.modification(event => {\n\n})\n";
         }
         ResourceLocation uid = category.getRecipeType().getUid();
         return "// Auto-generated by KubeJS Recipe Editor\n// Recipe type: " + uid
@@ -1016,7 +1268,10 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             col = Math.max(0, (cap.x() - minX + CRAFT_CELL / 2) / CRAFT_CELL);
             row = Math.max(0, (cap.y() - minY + CRAFT_CELL / 2) / CRAFT_CELL);
         }
-        slots.add(new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col));
+        SlotData addedSlot = new SlotData(absX, absY, CRAFT_CELL, CRAFT_CELL, cap.role(), row, col);
+        addedSlot.jeiRelX = cap.x();
+        addedSlot.jeiRelY = cap.y();
+        slots.add(addedSlot);
         activeInputSlotCount++;
         rebuildAddSlotButton();
     }
@@ -1040,10 +1295,12 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
             if (ep.type() == ExtraParam.Type.INT) {
                 int step = shift ? 10 : 1;
-                extraParamValues.put(ep.key(), String.valueOf(Integer.parseInt(cur) + direction * step));
+                int raw = Integer.parseInt(cur) + direction * step;
+                if (ep.minBound() != Integer.MIN_VALUE) raw = Math.max(ep.minBound(), raw);
+                extraParamValues.put(ep.key(), String.valueOf(raw));
             } else if (ep.type() == ExtraParam.Type.FLOAT) {
                 double step = shift ? 1.0 : 0.1;
-                extraParamValues.put(ep.key(), String.format("%.2f", Double.parseDouble(cur) + direction * step));
+                extraParamValues.put(ep.key(), String.format(Locale.ROOT, "%.2f", Double.parseDouble(cur) + direction * step));
             }
         } catch (NumberFormatException ignored) {}
     }
@@ -1051,6 +1308,16 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private void toggleExtraParam(ExtraParam ep, Button btn) {
         String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
         String next = "true".equalsIgnoreCase(cur) ? "false" : "true";
+        extraParamValues.put(ep.key(), next);
+        btn.setMessage(Component.literal(next));
+    }
+
+    private void cycleEnumParam(ExtraParam ep, Button btn) {
+        List<String> vals = ep.enumValues();
+        if (vals.isEmpty()) return;
+        String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+        int idx = vals.indexOf(cur);
+        String next = vals.get((idx + 1) % vals.size());
         extraParamValues.put(ep.key(), next);
         btn.setMessage(Component.literal(next));
     }

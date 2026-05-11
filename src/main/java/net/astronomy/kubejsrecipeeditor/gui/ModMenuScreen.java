@@ -45,7 +45,9 @@ public class ModMenuScreen extends Screen {
                 .createRecipeCategoryLookup().get();
 
         categories.forEach(cat -> {
-            if (isTagBrowserCategory(cat)) return; // Tag Editor covers this
+            if (isTagBrowserCategory(cat)) return;
+            // Only show categories that have a registered layout template (skip anvil, brewing, etc.)
+            if (RecipeTemplateRegistry.INSTANCE.get(cat.getRecipeType()).isEmpty()) return;
             String ns = cat.getRecipeType().getUid().getNamespace();
             sections.computeIfAbsent(ns, k -> new ArrayList<>()).add(cat);
         });
@@ -283,4 +285,5 @@ public class ModMenuScreen extends Screen {
             || uid.contains("tag_viewer") || uid.contains("tagsviewer")
             || title.equals("item tags") || title.equals("block tags") || title.equals("fluid tags");
     }
+
 }

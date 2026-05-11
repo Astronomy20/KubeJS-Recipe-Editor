@@ -19,6 +19,15 @@ public class SlotData {
     public ResourceLocation selectedTag = null;
     public int count = 1;
 
+    // Fluid support
+    public boolean isFluid = false;
+    public ResourceLocation fluidId = null;
+    public long fluidAmount = 1000L;
+
+    // JEI-relative coordinates for RecipeJsonBuilder matching (-1 = not from CapturedSlot)
+    public int jeiRelX = -1;
+    public int jeiRelY = -1;
+
     public SlotData(int x, int y, int w, int h, RecipeIngredientRole role, int gridRow, int gridCol) {
         this.x = x;
         this.y = y;
@@ -30,7 +39,7 @@ public class SlotData {
     }
 
     public boolean isEmpty() {
-        return ingredient.isEmpty();
+        return ingredient.isEmpty() && !isFluid;
     }
 
     public boolean contains(int mouseX, int mouseY) {
@@ -39,7 +48,11 @@ public class SlotData {
 
     /** Returns the KubeJS ingredient string for export. */
     public String toKubeJs() {
-        if (ingredient.isEmpty()) return "'minecraft:air'";
+        if (ingredient.isEmpty() && !isFluid) return "'minecraft:air'";
+        if (isFluid && fluidId != null) {
+            // For vanilla builders; custom recipes use RecipeJsonBuilder directly
+            return "Fluid.of('" + fluidId + "', " + fluidAmount + ")";
+        }
         // Output slots must always be a concrete item — tags are only valid for inputs
         if (useTag && selectedTag != null && role != RecipeIngredientRole.OUTPUT)
             return "'#" + selectedTag + "'";
@@ -51,5 +64,8 @@ public class SlotData {
         useTag = false;
         selectedTag = null;
         count = 1;
+        isFluid = false;
+        fluidId = null;
+        fluidAmount = 1000L;
     }
 }
