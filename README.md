@@ -1,14 +1,14 @@
 # KubeJS Recipe Editor
 
 Minecraft 1.21.1 NeoForge mod for creating and exporting KubeJS 6 recipes in-game.
-Supports all recipe categories from any installed mod — no addon mods required.
+Supports all recipe categories from any installed mod, no addon mods required.
 
 ## Requirements
 
 - Minecraft 1.21.1
 - NeoForge 21.1.x
 - KubeJS 6 (2101.x)
-- JEI 19.x (bundled — installed automatically if not already present)
+- JEI 19.x (bundled - installed automatically if not already present)
 
 ## Usage
 
@@ -37,12 +37,12 @@ A status message shows the result: `Exported N types, M recipes`.
 
 ## Output Paths
 
-| Recipe type | Output file |
-|-------------|-------------|
-| Vanilla crafting, smelting, etc. | `kubejs/server_scripts/vanilla/<type>.js` |
-| Modded recipes | `kubejs/server_scripts/<namespace>/<type>.js` |
-| Composting | `kubejs/server_scripts/composting.js` |
-| Fuel (burn time) | `kubejs/startup_scripts/fuel.js` |
+| Recipe type                      | Output file                                   |
+|----------------------------------|-----------------------------------------------|
+| Vanilla crafting, smelting, etc. | `kubejs/server_scripts/vanilla/<type>.js`     |
+| Modded recipes                   | `kubejs/server_scripts/<namespace>/<type>.js` |
+| Composting                       | `kubejs/server_scripts/composting.js`         |
+| Fuel (burn time)                 | `kubejs/startup_scripts/fuel.js`              |
 
 ## Tag Editor
 
