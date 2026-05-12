@@ -65,6 +65,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private final @Nullable RecipeTemplate capturedLayout;
     private final boolean isCompostingCategory;
     private final boolean isFuelCategory;
+    private final boolean isBrewingCategory;
 
     private final List<SlotData> slots = new ArrayList<>();
 
@@ -146,6 +147,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         this.capturedLayout = RecipeTemplateRegistry.INSTANCE.get(category.getRecipeType()).orElse(null);
         this.isCompostingCategory = detectComposting(category);
         this.isFuelCategory       = detectFuel(category);
+        this.isBrewingCategory    = detectBrewing(category);
 
         // Slot-count range (stays valid across resize-triggered init() calls)
         this.activeInputSlotCount = capturedLayout != null ? capturedLayout.minInputSlots() : 0;
@@ -162,7 +164,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         int bgW = recipePanelBgWidth();
         int bgH = recipePanelBgHeight();
         int extraParamCount = capturedLayout != null ? capturedLayout.extraParams().size() : 0;
-        int extraRows = (isCompostingCategory || isFuelCategory ? 1 : 0) + extraParamCount;
+        int extraRows = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0) + extraParamCount;
         int seqH = isSequencedAssembly()
                 ? SEQ_HEADER_H + Math.max(1, sequenceSteps.size()) * STEP_ROW_H + SEQ_ADD_BTN_H + 6
                 : 0;
@@ -181,6 +183,12 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         String uid   = cat.getRecipeType().getUid().toString();
         String title = cat.getTitle().getString();
         return uid.contains("fuel") || title.equalsIgnoreCase("fuel");
+    }
+
+    private static boolean detectBrewing(IRecipeCategory<?> cat) {
+        String uid   = cat.getRecipeType().getUid().toString();
+        String title = cat.getTitle().getString().toLowerCase();
+        return uid.contains("brewing") || title.contains("brewing");
     }
 
     public int getWinX() { return leftPos; }
@@ -213,11 +221,38 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         return category.getIcon();
     }
 
+    /**
+     * Returns the effective panel width used for both imageWidth and recipeX centering.
+     *
+     * For most categories this equals the JEI background width. However, for non-vanilla,
+     * non-crafting-grid categories where the interactive slots occupy less than 70 % of the
+     * background width, we shrink the panel to the slot bounding-box so the window does not
+     * have large wasted margins. The JEI background texture is still drawn from recipeX and
+     * may slightly overflow the window border — that is intentional and harmless.
+     */
     private int recipePanelBgWidth() {
         if (isCompostingCategory || isFuelCategory) return CRAFT_CELL;
         IDrawable bg = resolveDrawableBackground();
-        if (bg != null) return bg.getWidth();
-        return category.getWidth();
+        int fullW = (bg != null) ? bg.getWidth() : category.getWidth();
+
+        // Only apply narrowing for non-vanilla, non-crafting-grid categories that have slots.
+        ResourceLocation uid = category.getRecipeType().getUid();
+        boolean isVanilla = "minecraft".equals(uid.getNamespace());
+        if (!isVanilla && !usesCraftingInputGrid()
+                && capturedLayout != null && !capturedLayout.slots().isEmpty()) {
+            int minX = capturedLayout.slots().stream()
+                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
+            int maxX = capturedLayout.slots().stream()
+                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).max().orElse(0) + CRAFT_CELL;
+            int slotSpan = maxX - minX;
+            // Narrow only when slots occupy clearly less than 70 % of the full background.
+            if (slotSpan > 0 && slotSpan < fullW * 7 / 10) {
+                // Effective width: slot span + one cell of padding on each side, but never
+                // less than 75 % of the full background (avoid over-cropping).
+                return Math.max(slotSpan + CRAFT_CELL * 2, fullW * 3 / 4);
+            }
+        }
+        return fullW;
     }
 
     private int recipePanelBgHeight() {
@@ -238,14 +273,17 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         return out != null && out.isJsonPrimitive() && !out.getAsJsonPrimitive().isString();
     }
 
-    /** True when exporting uses shaped / shapeless crafting and slot positions form a grid. */
+    /** True when slot positions form a 2-D crafting grid (vanilla shaped or Create mechanical_crafting). */
     private boolean usesCraftingInputGrid() {
         ResourceLocation uid = category.getRecipeType().getUid();
-        if (!"minecraft".equals(uid.getNamespace())) return false;
-        String path = uid.getPath();
-        return "crafting".equals(path)
-                || "crafting_shaped".equals(path)
-                || "crafting_shapeless".equals(path);
+        if ("minecraft".equals(uid.getNamespace())) {
+            String path = uid.getPath();
+            return "crafting".equals(path)
+                    || "crafting_shaped".equals(path)
+                    || "crafting_shapeless".equals(path);
+        }
+        // Create mechanical_crafting uses the same pattern+key shaped format
+        return "create".equals(uid.getNamespace()) && "mechanical_crafting".equals(uid.getPath());
     }
 
     @Override
@@ -261,43 +299,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         recipeX = leftPos + (imageWidth - cw) / 2;
         recipeY = topPos  + TOP_BAR + PADDING;
 
-        // Slot-centering correction: if interactive slots are clustered to one side of the
-        // background (e.g. Create Manual Item Application), shift recipeX/recipeY so the
-        // slot group appears centered in the window rather than the raw background center.
-        if (capturedLayout != null && !capturedLayout.slots().isEmpty()
-                && !isCompostingCategory && !isFuelCategory) {
-            var interactive = capturedLayout.slots().stream()
-                    .filter(s -> s.role() == RecipeIngredientRole.INPUT
-                              || s.role() == RecipeIngredientRole.OUTPUT
-                              || s.role() == RecipeIngredientRole.CATALYST)
-                    .toList();
-            if (!interactive.isEmpty()) {
-                int ch = recipePanelBgHeight();
-                // X correction
-                int minJeiX = interactive.stream()
-                        .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
-                int maxJeiX = interactive.stream()
-                        .mapToInt(s -> s.x() + CRAFT_CELL).max().orElse(cw);
-                int dx = cw / 2 - (minJeiX + maxJeiX) / 2;
-                if (Math.abs(dx) > 4) recipeX += dx;
-                // Y correction
-                int minJeiY = interactive.stream()
-                        .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
-                int maxJeiY = interactive.stream()
-                        .mapToInt(s -> s.y() + CRAFT_CELL).max().orElse(ch);
-                int dy = ch / 2 - (minJeiY + maxJeiY) / 2;
-                if (Math.abs(dy) > 4) recipeY += dy;
-            }
-        }
-
         buildSlotsFromCapture();
 
         // Home button
         addRenderableWidget(Button.builder(Component.literal("⌂"), btn -> goHome())
                 .pos(leftPos + 4, topPos + 4).size(20, 16).build());
 
-        // Variable-slot "+" button (positioned on the first hidden slot)
-        if (maxInputSlotCount > (capturedLayout != null ? capturedLayout.minInputSlots() : 0)) {
+        // Variable-slot "+" button (not used for sequenced assembly — steps manage their own slots)
+        if (!isSequencedAssembly()
+                && maxInputSlotCount > (capturedLayout != null ? capturedLayout.minInputSlots() : 0)) {
             addSlotButton = Button.builder(Component.literal("+"), btn -> addNextInputSlot())
                     .pos(0, 0).size(14, 14).build();
             addRenderableWidget(addSlotButton);
@@ -318,7 +328,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         // Extra codec-param widgets (INT/FLOAT: -/+; BOOLEAN: toggle; STRING: read-only)
         if (capturedLayout != null && !capturedLayout.extraParams().isEmpty()) {
-            int baseRow = (isCompostingCategory || isFuelCategory ? 1 : 0);
+            int baseRow = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0);
             int cx = leftPos + imageWidth / 2;
             for (int i = 0; i < capturedLayout.extraParams().size(); i++) {
                 ExtraParam ep = capturedLayout.extraParams().get(i);
@@ -377,6 +387,20 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             return;
         }
 
+        // Brewing stand: only add hardcoded 3-slot layout when JEI has no captured slots.
+        // If JEI properly exposes INPUT/CATALYST/OUTPUT for brewing, use those instead.
+        if (isBrewingCategory && (capturedLayout == null || capturedLayout.slots().isEmpty())) {
+            int cx = leftPos + imageWidth / 2;
+            int rowY = topPos + TOP_BAR + PADDING + 4;
+            slots.add(new SlotData(cx - CRAFT_CELL / 2, rowY, CRAFT_CELL, CRAFT_CELL,
+                    RecipeIngredientRole.CATALYST, 0, 0));
+            slots.add(new SlotData(cx - CRAFT_CELL - 6, rowY + CRAFT_CELL + 4, CRAFT_CELL, CRAFT_CELL,
+                    RecipeIngredientRole.INPUT, 0, 0));
+            slots.add(new SlotData(cx + 6, rowY + CRAFT_CELL + 4, CRAFT_CELL, CRAFT_CELL,
+                    RecipeIngredientRole.OUTPUT, 0, 0));
+            return;
+        }
+
         if (capturedLayout == null) {
             if (JeiIntegration.isRuntimeAvailable()) {
                 statusMessage = "Layout unavailable — try Resources Reload (F3+T)";
@@ -407,11 +431,12 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         int minInputY = allCapturedInputSlots.stream().mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
         boolean inferCraftingGrid = usesCraftingInputGrid() && !allCapturedInputSlots.isEmpty();
 
-        int activeInputAdded = 0;
         for (SlotCapturingLayoutBuilder.CapturedSlot cap : caps) {
             if (cap.role() == RecipeIngredientRole.INPUT) {
-                // Only add up to activeInputSlotCount input slots (sorted order preserved
-                // because allCapturedInputSlots was sorted before we began iterating caps)
+                // Sequenced assembly: JEI input slots are render-only transition items — skip them.
+                // The main ingredient slot is added below as a synthetic slot.
+                if (isSequencedAssembly()) continue;
+                // Variable-slot categories: only add up to activeInputSlotCount
                 int idxInSorted = allCapturedInputSlots.indexOf(cap);
                 if (idxInSorted >= activeInputSlotCount) continue;
             }
@@ -428,14 +453,22 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             slots.add(newSlot);
         }
 
-        // Synthetic INPUT slot when template has "ingredient" (singular) but no INPUT slots were
-        // captured from JEI (e.g. Create Sequenced Assembly — the input item is RENDER_ONLY in JEI).
-        if (capturedLayout != null && capturedLayout.exportTemplate() != null) {
+        // Synthetic INPUT slot for recipes where JEI captured no interactive INPUT slots but the
+        // template has a single-item ingredient field ("ingredient" or "input" with item/tag structure).
+        // Also always adds for Sequenced Assembly (belt input is RENDER_ONLY in JEI).
+        if (capturedLayout.exportTemplate() != null) {
             JsonObject tmpl = capturedLayout.exportTemplate();
-            boolean needsSyntheticInput = tmpl.has("ingredient")
-                    && !tmpl.has("ingredients")
-                    && slots.stream().noneMatch(s -> s.role == RecipeIngredientRole.INPUT);
-            if (needsSyntheticInput) {
+            boolean noInput = isSequencedAssembly() || slots.stream().noneMatch(s -> s.role == RecipeIngredientRole.INPUT);
+            boolean hasSingularIngredient = false;
+            if (!tmpl.has("ingredients")) {
+                if (tmpl.has("ingredient")) {
+                    hasSingularIngredient = true;
+                } else if (tmpl.has("input") && tmpl.get("input").isJsonObject()) {
+                    // Only for item/tag inputs — not for chemical/energy inputs (Mekanism)
+                    hasSingularIngredient = isItemIngredientObject(tmpl.getAsJsonObject("input"));
+                }
+            }
+            if (hasSingularIngredient && noInput) {
                 int synthX = recipeX - CRAFT_CELL - 6;
                 int synthY = recipeY + (recipePanelBgHeight() - CRAFT_CELL) / 2;
                 slots.add(new SlotData(synthX, synthY, CRAFT_CELL, CRAFT_CELL,
@@ -473,10 +506,17 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 SlotData newSlot = new SlotData(slotX, slotY, CRAFT_CELL, CRAFT_CELL,
                         RecipeIngredientRole.INPUT, 0, 0);
                 if (prevSlot != null) {
-                    newSlot.ingredient = prevSlot.ingredient;
-                    newSlot.isFluid    = prevSlot.isFluid;
-                    newSlot.fluidId    = prevSlot.fluidId;
-                    newSlot.fluidAmount = prevSlot.fluidAmount;
+                    // Preserve all slot content from resize/re-init
+                    newSlot.ingredient      = prevSlot.ingredient;
+                    newSlot.isFluid         = prevSlot.isFluid;
+                    newSlot.fluidId         = prevSlot.fluidId;
+                    newSlot.fluidAmount     = prevSlot.fluidAmount;
+                    newSlot.useFluidTag     = prevSlot.useFluidTag;
+                    newSlot.selectedFluidTag = prevSlot.selectedFluidTag;
+                } else if (step.needsFluid()) {
+                    // No previous content: initialise as fluid-accepting slot (create:filling)
+                    newSlot.isFluid = true;
+                    // fluidId stays null — awaits user drag
                 }
                 step.slot = newSlot;
                 slots.add(newSlot);
@@ -577,6 +617,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             }
         }
 
+        // Brewing: slot labels
+        if (isBrewingCategory) {
+            int rowY = TOP_BAR + PADDING + 4;
+            g.drawCenteredString(font, "§7Ingredient", imageWidth / 2, rowY - 8, 0xFFAAAAAA);
+            int bot = rowY + CRAFT_CELL + 4;
+            g.drawString(font, "§7Input",  imageWidth / 2 - CRAFT_CELL - 6 - 2, bot + 10, 0xFFAAAAAA, false);
+            g.drawString(font, "§7Output", imageWidth / 2 + 6,                  bot + 10, 0xFFAAAAAA, false);
+        }
+
         // Composting / fuel row
         if (isCompostingCategory || isFuelCategory) {
             int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING + 7;
@@ -588,13 +637,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         // Extra codec-param rows
         if (capturedLayout != null && !capturedLayout.extraParams().isEmpty()) {
-            int baseRow = (isCompostingCategory || isFuelCategory ? 1 : 0);
+            int baseRow = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0);
             for (int i = 0; i < capturedLayout.extraParams().size(); i++) {
                 ExtraParam ep = capturedLayout.extraParams().get(i);
                 int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
                         + (baseRow + i) * EXTRA_FIELD_H + 7;
                 String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
-                g.drawString(font, ep.key() + ":", PADDING + 2, fy, 0xFFAAAAAA, false);
+                // result_chance is a per-item probability — show a clearer label
+                String epLabel = ep.key().equals("result_chance") ? "item chance:" : ep.key() + ":";
+                g.drawString(font, epLabel, PADDING + 2, fy, 0xFFAAAAAA, false);
                 if (ep.type() == ExtraParam.Type.INT || ep.type() == ExtraParam.Type.FLOAT) {
                     g.drawCenteredString(font, val, imageWidth / 2, fy, 0xFFFFFFFF);
                 } else if (ep.type() == ExtraParam.Type.STRING) {
@@ -644,9 +695,12 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         if (activePopup == null && !isDragging) {
             for (SlotData slot : slots) {
                 if (slot.contains(mouseX, mouseY) && !slot.isEmpty()) {
-                    if (slot.isFluid && slot.fluidId != null) {
+                    if (slot.isFluid && !slot.isEmpty()) {
+                        String fluidLabel = slot.useFluidTag && slot.selectedFluidTag != null
+                                ? "#" + slot.selectedFluidTag
+                                : (slot.fluidId != null ? slot.fluidId.toString() : "");
                         java.util.List<Component> lines = java.util.List.of(
-                            Component.literal(slot.fluidId.toString()),
+                            Component.literal(fluidLabel),
                             Component.literal(slot.fluidAmount + " mB")
                                     .withStyle(s -> s.withColor(0xAAAAAA))
                         );
@@ -700,10 +754,11 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private void rebuildAfterStepChange() {
         int bgH = recipePanelBgHeight();
         int extraParamCount = capturedLayout != null ? capturedLayout.extraParams().size() : 0;
-        int extraRows = (isCompostingCategory || isFuelCategory ? 1 : 0) + extraParamCount;
+        int extraRows = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0) + extraParamCount;
         int seqH = SEQ_HEADER_H + Math.max(1, sequenceSteps.size()) * STEP_ROW_H + SEQ_ADD_BTN_H + 6;
         this.imageHeight = TOP_BAR + PADDING + bgH + PADDING
                 + (extraRows > 0 ? EXTRA_FIELD_H * extraRows + 4 : 10) + seqH + BOTTOM_BAR;
+        clearWidgets(); // must clear before re-init to prevent widget duplication
         this.init();
     }
 
@@ -719,6 +774,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         Map<Integer, SlotData> byIdx = buildIngredientIndexMap();
 
         // Pass 1 — ingredients array (Create Mixing, etc.)
+        // Mark fluid slots as fluid-accepting WITHOUT pre-filling content (structure only).
         if (tmpl.has("ingredients") && tmpl.get("ingredients").isJsonArray()) {
             JsonArray arr = tmpl.getAsJsonArray("ingredients");
             for (int i = 0; i < arr.size(); i++) {
@@ -727,33 +783,24 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 if (slot == null || !entry.isJsonObject()) continue;
                 JsonObject obj = entry.getAsJsonObject();
                 if ((obj.has("fluid") || obj.has("fluidTag")) && !slot.isFluid) {
-                    slot.isFluid = true;
-                    String fluidKey = obj.has("fluid") ? obj.get("fluid").getAsString()
-                            : obj.get("fluidTag").getAsString();
-                    slot.fluidId     = ResourceLocation.tryParse(fluidKey);
-                    slot.fluidAmount = obj.has("amount") ? obj.get("amount").getAsLong() : 1000L;
+                    slot.isFluid    = true;   // marks this slot as fluid-type
+                    slot.fluidId    = null;   // no pre-filled fluid — user must drop a bucket
+                    slot.fluidAmount = 1000L;
                 }
             }
         }
 
-        // Pass 2 — fluidIngredient field (Create Filling, etc.)
-        // Maps to the first INPUT slot that was NOT already claimed by the ingredients index map.
+        // Pass 2 — fluidIngredient field (Create Filling / Spout, etc.)
         if (tmpl.has("fluidIngredient") && tmpl.get("fluidIngredient").isJsonObject()) {
-            JsonObject fi = tmpl.getAsJsonObject("fluidIngredient");
-            String fluidKey = fi.has("fluid")    ? fi.get("fluid").getAsString()
-                            : fi.has("fluidTag") ? fi.get("fluidTag").getAsString()
-                            : null;
-            if (fluidKey != null) {
-                java.util.Set<SlotData> claimed = new java.util.HashSet<>(byIdx.values());
-                for (SlotData slot : slots) {
-                    if (slot.role == RecipeIngredientRole.INPUT
-                            && !claimed.contains(slot)
-                            && !slot.isFluid) {
-                        slot.isFluid     = true;
-                        slot.fluidId     = ResourceLocation.tryParse(fluidKey);
-                        slot.fluidAmount = fi.has("amount") ? fi.get("amount").getAsLong() : 1000L;
-                        break;
-                    }
+            java.util.Set<SlotData> claimed = new java.util.HashSet<>(byIdx.values());
+            for (SlotData slot : slots) {
+                if (slot.role == RecipeIngredientRole.INPUT
+                        && !claimed.contains(slot)
+                        && !slot.isFluid) {
+                    slot.isFluid    = true;
+                    slot.fluidId    = null;
+                    slot.fluidAmount = 1000L;
+                    break;
                 }
             }
         }
@@ -795,13 +842,25 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         if (hover) g.fill(ix - 1, iy - 1, ix + 17, iy + 17, 0x55FFFFFF);
 
-        if (slot.isFluid && slot.fluidId != null) {
-            // Render bucket item (stored in ingredient) with blue "~" overlay for fluid mode
-            if (!slot.ingredient.isEmpty()) {
-                g.renderItem(slot.ingredient, ix, iy);
-                g.renderItemDecorations(font, slot.ingredient, ix, iy);
+        if (slot.isFluid && slot.isEmpty()) {
+            // Empty fluid slot: show faint "~" to indicate it awaits a fluid (drag a bucket)
+            g.drawString(font, "~", ix + 1, iy + 1, 0x8855BBFF, false);
+            return;
+        }
+
+        if (slot.isFluid && !slot.isEmpty()) {
+            if (slot.useFluidTag) {
+                // Tag mode: show "#~" overlay (no bucket item, just a tag indicator)
+                g.drawString(font, "~", ix + 1, iy + 1, 0xFF55BBFF, false);
+                g.drawString(font, "#", ix + 8, iy + 8, 0xFFFFFF55, false);
+            } else {
+                // Fluid ID mode: render bucket item (stored in ingredient) with blue "~" overlay
+                if (!slot.ingredient.isEmpty()) {
+                    g.renderItem(slot.ingredient, ix, iy);
+                    g.renderItemDecorations(font, slot.ingredient, ix, iy);
+                }
+                g.drawString(font, "~", ix + 1, iy + 1, 0xFF55BBFF, false);
             }
-            g.drawString(font, "~", ix + 1, iy + 1, 0xFF55BBFF, false);
             if (hover) {
                 g.fill(ix + 8, iy - 1, ix + 17, iy + 8, 0x88000000);
                 g.drawString(font, "×", ix + 10, iy, 0xFFFF5555, false);
@@ -841,8 +900,19 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         if (button == 0) {
             for (SlotData slot : slots) {
                 if (!slot.contains(mouseX, mouseY)) continue;
-                if (!slot.ingredient.isEmpty() && isXArea(slot, mouseX, mouseY)) {
-                    slot.clear();
+                // "×" clear area: works for both item slots and non-empty fluid slots
+                boolean slotHasContent = !slot.ingredient.isEmpty() || (slot.isFluid && !slot.isEmpty());
+                if (slotHasContent && isXArea(slot, mouseX, mouseY)) {
+                    if (slot.isFluid) {
+                        // Clear fluid content but keep the slot in fluid-accepting mode
+                        slot.fluidId = null;
+                        slot.ingredient = ItemStack.EMPTY;
+                        slot.useFluidTag = false;
+                        slot.selectedFluidTag = null;
+                        slot.fluidAmount = 1000L;
+                    } else {
+                        slot.clear();
+                    }
                     statusMessage = "";
                     return true;
                 }
@@ -857,12 +927,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         if (button == 1) {
             for (SlotData slot : slots) {
-                if (!slot.contains(mouseX, mouseY) || slot.isEmpty()) continue;
+                if (!slot.contains(mouseX, mouseY)) continue;
                 if (slot.isFluid) {
+                    // Open fluid popup for both empty and non-empty fluid slots
+                    // so the user can switch to tag mode even before placing a fluid
                     activePopup = new FluidSelectionPopup(slot, width, height);
-                } else {
-                    activePopup = new TagSelectionPopup(slot, width, height);
+                    return true;
                 }
+                if (slot.isEmpty()) continue;
+                activePopup = new TagSelectionPopup(slot, width, height);
                 return true;
             }
         }
@@ -1024,6 +1097,19 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         slot.ingredient = stack.copy();
     }
 
+    /**
+     * Called by the JEI ghost handler when a fluid is dragged from JEI onto a slot.
+     * Marks the slot as fluid regardless of its prior state.
+     */
+    public void acceptFluidIngredient(SlotData slot, net.neoforged.neoforge.fluids.FluidStack fluidStack) {
+        slot.isFluid    = true;
+        slot.fluidId    = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluidStack.getFluid());
+        slot.fluidAmount = Math.max(1L, fluidStack.getAmount());
+        slot.ingredient = ItemStack.EMPTY;
+        slot.useFluidTag = false;
+        slot.selectedFluidTag = null;
+    }
+
     private SlotDescriptor findDescriptorForSlot(SlotData slot) {
         GuiDescriptor desc = capturedLayout != null ? capturedLayout.guiDescriptor() : null;
         if (desc == null) return null;
@@ -1052,6 +1138,13 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         if (isCompostingCategory || isFuelCategory) {
             if (!hasInput) { statusMessage = "Set an input item first"; statusColor = 0xFF5555; return; }
+        } else if (isBrewingCategory) {
+            boolean hasCatalyst = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.CATALYST && !s.isEmpty());
+            boolean hasOutput   = slots.stream().anyMatch(s -> s.role == RecipeIngredientRole.OUTPUT  && !s.isEmpty());
+            if (!hasInput || !hasCatalyst || !hasOutput) {
+                statusMessage = "Set ingredient (CATALYST), input potion (INPUT), and result potion (OUTPUT)";
+                statusColor = 0xFF5555; return;
+            }
         } else {
             // Recipes with numeric output (e.g. Mekanism energy conversion) have no item output slot.
             if (!hasNonItemNumericOutput()) {
@@ -1168,6 +1261,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private String buildKubeJs(ResourceLocation uid, SlotData outputSlot) {
         if (isCompostingCategory) return buildComposting();
         if (isFuelCategory)       return buildFuel();
+        if (isBrewingCategory)    return buildBrewing();
 
         String ns   = uid.getNamespace();
         String path = uid.getPath();
@@ -1231,6 +1325,48 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 .findFirst().map(SlotData::toKubeJs).orElse("'minecraft:air'");
         int ticks = fuelBurnSecs * 20;
         return "    event.modify(" + item + ", item => { item.burnTime = " + ticks + " })";
+    }
+
+    private String buildBrewing() {
+        // Ingredient (top slot of brewing stand) may be captured as CATALYST or as the first INPUT
+        SlotData catalyst = slots.stream()
+                .filter(s -> s.role == RecipeIngredientRole.CATALYST && !s.isEmpty())
+                .findFirst().orElse(null);
+        List<SlotData> inputs = slots.stream()
+                .filter(s -> s.role == RecipeIngredientRole.INPUT && !s.isEmpty()).toList();
+
+        SlotData ingredient = catalyst != null ? catalyst : (!inputs.isEmpty() ? inputs.get(0) : null);
+        SlotData inputPotion = catalyst != null ? (!inputs.isEmpty() ? inputs.get(0) : null)
+                                                : (inputs.size() > 1 ? inputs.get(1) : null);
+        SlotData output = slots.stream()
+                .filter(s -> s.role == RecipeIngredientRole.OUTPUT && !s.isEmpty())
+                .findFirst().orElse(null);
+
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "minecraft:brewing");
+        json.add("ingredient", ingredient != null ? buildIngredientElement(ingredient) : new JsonObject());
+        json.add("input",      inputPotion != null ? buildIngredientElement(inputPotion) : new JsonObject());
+
+        if (output != null) {
+            try {
+                RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
+                DynamicOps<JsonElement> ops = regs.createSerializationContext(JsonOps.INSTANCE);
+                JsonElement enc = net.minecraft.world.item.ItemStack.CODEC
+                        .encodeStart(ops, output.ingredient.copyWithCount(output.count)).getOrThrow();
+                json.add("result", enc);
+            } catch (Exception e) {
+                JsonObject res = new JsonObject();
+                res.addProperty("id", output.ingredient.getItem()
+                        .builtInRegistryHolder().key().location().toString());
+                if (output.count > 1) res.addProperty("count", output.count);
+                json.add("result", res);
+            }
+        } else {
+            json.add("result", new JsonObject());
+        }
+        com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+        String indented = gson.toJson(json).lines().map(l -> "        " + l).collect(Collectors.joining("\n"));
+        return "    event.custom(\n" + indented + "\n    )";
     }
 
     private String buildCrafting(String output, List<SlotData> inputs) {
@@ -1388,14 +1524,30 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             }
         }
 
+        // ── Rebuild pattern/key for shaped-crafting-format recipes (e.g. Create Mechanical Crafting) ──
+        if (json.has("pattern") && json.has("key")) {
+            rebuildPatternKey(json, inputs);
+        } else
+
         // ── Patch ingredient fields ─────────────────────────────────────────
         if (json.has("ingredients")) {
             JsonArray origIngredients = json.getAsJsonArray("ingredients");
             json.add("ingredients", buildIngredientArraySmart(origIngredients, inputs));
         } else if (json.has("ingredient")) {
-            // Patch item ingredient (non-fluid inputs only)
-            SlotData first = inputs.stream().filter(s -> !s.isEmpty() && !s.isFluid).findFirst().orElse(null);
-            json.add("ingredient", first != null ? buildIngredientElement(first) : new JsonObject());
+            // Check if the template ingredient is a fluid (some mods allow fluid in "ingredient")
+            JsonElement origIngr = json.get("ingredient");
+            boolean templateIsFluid = origIngr.isJsonObject()
+                    && (origIngr.getAsJsonObject().has("fluid") || origIngr.getAsJsonObject().has("fluidTag"));
+            if (templateIsFluid) {
+                // Replace with user fluid slot
+                SlotData fluidFirst = inputs.stream().filter(s -> !s.isEmpty() && s.isFluid).findFirst().orElse(null);
+                if (fluidFirst != null) json.add("ingredient", buildFluidElement(fluidFirst));
+                // Otherwise keep template verbatim
+            } else {
+                // Patch item ingredient (non-fluid inputs only)
+                SlotData first = inputs.stream().filter(s -> !s.isEmpty() && !s.isFluid).findFirst().orElse(null);
+                json.add("ingredient", first != null ? buildIngredientElement(first) : new JsonObject());
+            }
         } else if (json.has("base") || json.has("addition")) {
             // minecraft:grindstone style
             List<SlotData> nonEmpty = inputs.stream().filter(s -> !s.isEmpty()).toList();
@@ -1450,16 +1602,21 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         // ── Patch fluidIngredient (Create Filling and similar) ──────────────────
         // This is independent of the ingredients/ingredient block above since a recipe
         // can have BOTH "ingredient" (item) AND "fluidIngredient" (fluid).
-        if (json.has("fluidIngredient") && json.get("fluidIngredient").isJsonObject()) {
+        // ── Patch any single-fluid ingredient field (fluidIngredient, inputFluid, etc.) ──────
+        // Generic: find any top-level object field that acts as a fluid ingredient.
+        // Only patch fields not already handled above (not in ingredients/ingredient blocks).
+        {
             SlotData fluidSlot = inputs.stream()
-                    .filter(s -> s.isFluid && s.fluidId != null)
+                    .filter(s -> s.isFluid && !s.isEmpty())
                     .findFirst().orElse(null);
             if (fluidSlot != null) {
-                JsonObject fi = json.getAsJsonObject("fluidIngredient").deepCopy();
-                fi.remove("fluidTag"); // replace tag reference with explicit fluid ID
-                fi.addProperty("fluid", fluidSlot.fluidId.toString());
-                fi.addProperty("amount", fluidSlot.fluidAmount);
-                json.add("fluidIngredient", fi);
+                for (String fluidField : new String[]{"fluidIngredient", "inputFluid", "fluid_ingredient"}) {
+                    if (!json.has(fluidField)) continue;
+                    JsonElement fe = json.get(fluidField);
+                    if (!fe.isJsonObject()) continue;
+                    json.add(fluidField, patchFluidEntry(fe.getAsJsonObject().deepCopy(), fluidSlot));
+                    break; // patch only the first match
+                }
             }
         }
 
@@ -1478,10 +1635,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             JsonObject outObj = new JsonObject();
             outObj.addProperty(itemKey, outId);
             if (outSlot != null && outSlot.count > 1) outObj.addProperty("count", outSlot.count);
-            String chanceVal = extraParamValues.get("result_chance");
-            if (chanceVal != null) {
-                try { outObj.addProperty("chance", Double.parseDouble(chanceVal)); }
-                catch (NumberFormatException ignored) {}
+            // Per-item chance: prefer SlotData.chance, fall back to result_chance ExtraParam
+            if (outSlot != null && outSlot.chance >= 0f && outSlot.chance <= 1f) {
+                outObj.addProperty("chance", (double) outSlot.chance);
+            } else {
+                String chanceVal = extraParamValues.get("result_chance");
+                if (chanceVal != null) {
+                    try { outObj.addProperty("chance", Math.min(1.0, Double.parseDouble(chanceVal))); }
+                    catch (NumberFormatException ignored) {}
+                }
             }
             results.add(outObj);
             json.add("results", results);
@@ -1557,19 +1719,73 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             JsonObject stepObj = step.rawStep.deepCopy();
             stepObj.addProperty("type", step.type);
             if (step.slot != null && !step.slot.isEmpty()) {
-                JsonObject ingr = new JsonObject();
-                if (step.needsFluid() && step.slot.isFluid && step.slot.fluidId != null) {
-                    ingr.addProperty("fluid", step.slot.fluidId.toString());
-                    ingr.addProperty("amount", step.slot.fluidAmount);
+                if (step.needsFluid() && step.slot.isFluid && !step.slot.isEmpty()) {
+                    // Fluid step: use buildFluidElement to support both fluid ID and fluid tag
+                    stepObj.add("ingredient", buildFluidElement(step.slot));
                 } else if (!step.slot.ingredient.isEmpty()) {
+                    JsonObject ingr = new JsonObject();
                     ingr.addProperty("item", step.slot.ingredient.getItem()
                             .builtInRegistryHolder().key().location().toString());
+                    stepObj.add("ingredient", ingr);
                 }
-                if (!ingr.isEmpty()) stepObj.add("ingredient", ingr);
             }
             newSeq.add(stepObj);
         }
         json.add("sequence", newSeq);
+    }
+
+    /**
+     * Rebuilds the "pattern" and "key" fields in {@code json} from the user's grid slots.
+     * Used for shaped-crafting-format recipes (vanilla crafting, Create Mechanical Crafting).
+     */
+    private void rebuildPatternKey(JsonObject json, List<SlotData> inputs) {
+        List<SlotData> nonEmpty = inputs.stream().filter(s -> !s.isEmpty()).toList();
+        if (nonEmpty.isEmpty()) return;
+
+        int maxRow = nonEmpty.stream().mapToInt(s -> s.gridRow).max().orElse(0);
+        int maxCol = nonEmpty.stream().mapToInt(s -> s.gridCol).max().orElse(0);
+        SlotData[][] grid = new SlotData[maxRow + 1][maxCol + 1];
+        for (SlotData s : nonEmpty) {
+            if (s.gridRow <= maxRow && s.gridCol <= maxCol) grid[s.gridRow][s.gridCol] = s;
+        }
+
+        Map<String, String> keyMap = new LinkedHashMap<>();
+        char letter = 'A';
+        JsonObject newKey  = new JsonObject();
+        JsonArray newPattern = new JsonArray();
+        for (SlotData[] row : grid) {
+            StringBuilder rowStr = new StringBuilder();
+            for (SlotData slot : row) {
+                if (slot == null || slot.isEmpty()) {
+                    rowStr.append(' ');
+                } else {
+                    String repr = slot.useTag && slot.selectedTag != null
+                            ? "#" + slot.selectedTag
+                            : slot.ingredient.getItem().builtInRegistryHolder().key().location().toString();
+                    if (!keyMap.containsKey(repr)) {
+                        String kc = String.valueOf(letter++);
+                        keyMap.put(repr, kc);
+                        JsonObject ingr = new JsonObject();
+                        if (slot.useTag && slot.selectedTag != null) {
+                            ingr.addProperty("tag", slot.selectedTag.toString());
+                        } else {
+                            ingr.addProperty("item", repr);
+                        }
+                        newKey.add(kc, ingr);
+                    }
+                    rowStr.append(keyMap.get(repr));
+                }
+            }
+            // Trim trailing spaces
+            String rowLine = rowStr.toString().replaceAll(" +$", "");
+            newPattern.add(rowLine);
+        }
+        // Drop trailing empty rows
+        while (newPattern.size() > 0 && newPattern.get(newPattern.size() - 1).getAsString().isEmpty()) {
+            newPattern.remove(newPattern.size() - 1);
+        }
+        json.add("pattern", newPattern);
+        json.add("key", newKey);
     }
 
     /** Builds a JsonArray of ingredient objects from non-empty input slots. */
@@ -1583,7 +1799,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     /** Builds a single ingredient JsonElement for one slot (fluid, item, or tag). */
     private JsonElement buildIngredientElement(SlotData s) {
-        if (s.isFluid && s.fluidId != null) return buildFluidElement(s);
+        if (s.isFluid && !s.isEmpty()) return buildFluidElement(s);
         JsonObject obj = new JsonObject();
         if (s.useTag && s.selectedTag != null) {
             obj.addProperty("tag", s.selectedTag.toString());
@@ -1611,9 +1827,9 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 JsonObject obj = entry.getAsJsonObject();
                 SlotData posSlot = byIdx.get(arrIdx);
                 if (obj.has("fluid") || obj.has("fluidTag")) {
-                    // Fluid entry: replace if user placed a fluid at matching position
-                    if (posSlot != null && posSlot.isFluid && posSlot.fluidId != null) {
-                        result.add(buildFluidElement(posSlot));
+                    // Fluid entry: patch original preserving all codec-required fields (e.g. "type")
+                    if (posSlot != null && posSlot.isFluid && !posSlot.isEmpty()) {
+                        result.add(patchFluidEntry(obj.deepCopy(), posSlot));
                     } else {
                         result.add(entry); // keep verbatim
                     }
@@ -1655,10 +1871,32 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     }
 
     private JsonElement buildFluidElement(SlotData s) {
+        // Constructs a plain fluid element — only use when no template entry is available.
+        // Prefer patchFluidEntry() when a template entry exists, to preserve codec fields like "type".
         JsonObject obj = new JsonObject();
-        if (s.fluidId != null) obj.addProperty("fluid", s.fluidId.toString());
+        if (s.useFluidTag && s.selectedFluidTag != null) {
+            obj.addProperty("fluidTag", s.selectedFluidTag.toString());
+        } else if (s.fluidId != null) {
+            obj.addProperty("fluid", s.fluidId.toString());
+        }
         obj.addProperty("amount", s.fluidAmount);
         return obj;
+    }
+
+    /**
+     * Patches a fluid template entry (preserving all fields like "type", "nbt", etc.) by
+     * updating only the fluid/fluidTag and amount fields from the user's slot.
+     */
+    private static JsonObject patchFluidEntry(JsonObject template, SlotData s) {
+        template.remove("fluid");
+        template.remove("fluidTag");
+        if (s.useFluidTag && s.selectedFluidTag != null) {
+            template.addProperty("fluidTag", s.selectedFluidTag.toString());
+        } else if (s.fluidId != null) {
+            template.addProperty("fluid", s.fluidId.toString());
+        }
+        template.addProperty("amount", s.fluidAmount);
+        return template;
     }
 
     /** Returns true if {@code obj} is a plain item/tag ingredient (replaceable by user input). */
@@ -1709,6 +1947,15 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
             int q2 = q1 < 0 ? -1 : s.indexOf('\'', q1 + 1);
             if (q1 >= 0 && q2 > q1) return s.substring(q1 + 1, q2);
         }
+        // Fluid.of('id', amount) — extract just the ResourceLocation
+        if (s.startsWith("Fluid.of(")) {
+            int q1 = s.indexOf('\'');
+            int q2 = q1 < 0 ? -1 : s.indexOf('\'', q1 + 1);
+            if (q1 >= 0 && q2 > q1) return s.substring(q1 + 1, q2);
+            // fallback: double-quoted form
+            q1 = s.indexOf('"'); q2 = q1 < 0 ? -1 : s.indexOf('"', q1 + 1);
+            if (q1 >= 0 && q2 > q1) return s.substring(q1 + 1, q2);
+        }
         return s.replace("'", "").replace("\"", "");
     }
 
@@ -1742,6 +1989,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private Path resolveOutputFile() {
         if (isCompostingCategory) return gameDir().resolve("kubejs/server_scripts/composting.js");
         if (isFuelCategory)       return gameDir().resolve("kubejs/startup_scripts/fuel.js");
+        if (isBrewingCategory)    return gameDir().resolve("kubejs/server_scripts/vanilla/brewing.js");
         ResourceLocation uid = category.getRecipeType().getUid();
         String folder = uid.getNamespace().equals("minecraft") ? "vanilla" : uid.getNamespace();
         return gameDir().resolve("kubejs/server_scripts/" + folder + "/" + uid.getPath() + ".js");
@@ -1756,6 +2004,10 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         if (isFuelCategory) {
             return "// Auto-generated by KubeJS Recipe Editor\n// Generated: " + ts
                     + "\n\nItemEvents.modification(event => {\n\n})\n";
+        }
+        if (isBrewingCategory) {
+            return "// Auto-generated by KubeJS Recipe Editor\n// Recipe type: minecraft:brewing\n// Generated: " + ts
+                    + "\n\nServerEvents.recipes(event => {\n\n})\n";
         }
         ResourceLocation uid = category.getRecipeType().getUid();
         return "// Auto-generated by KubeJS Recipe Editor\n// Recipe type: " + uid
@@ -1836,7 +2088,10 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                 extraParamValues.put(ep.key(), String.valueOf(raw));
             } else if (ep.type() == ExtraParam.Type.FLOAT) {
                 double step = shift ? 1.0 : 0.1;
-                extraParamValues.put(ep.key(), String.format(Locale.ROOT, "%.2f", Double.parseDouble(cur) + direction * step));
+                double newVal = Double.parseDouble(cur) + direction * step;
+                // result_chance is a per-item probability clamped to [0.0, 1.0]
+                if (ep.key().equals("result_chance")) newVal = Math.max(0.0, Math.min(1.0, newVal));
+                extraParamValues.put(ep.key(), String.format(Locale.ROOT, "%.2f", newVal));
             }
         } catch (NumberFormatException ignored) {}
     }

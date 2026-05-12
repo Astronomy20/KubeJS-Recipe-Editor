@@ -23,10 +23,20 @@ public class SlotData {
     public boolean isFluid = false;
     public ResourceLocation fluidId = null;
     public long fluidAmount = 1000L;
+    /** When true, export uses {@code "fluidTag"} instead of {@code "fluid"}. */
+    public boolean useFluidTag = false;
+    /** The fluid tag ResourceLocation to use when {@code useFluidTag} is true. */
+    public ResourceLocation selectedFluidTag = null;
 
     // JEI-relative coordinates for RecipeJsonBuilder matching (-1 = not from CapturedSlot)
     public int jeiRelX = -1;
     public int jeiRelY = -1;
+
+    /**
+     * Per-item output chance in [0.0, 1.0]. -1 means "not applicable" (no per-item chance
+     * for this slot). Used for modded recipes whose results[] entries carry a "chance" field.
+     */
+    public float chance = -1f;
 
     public SlotData(int x, int y, int w, int h, RecipeIngredientRole role, int gridRow, int gridCol) {
         this.x = x;
@@ -39,7 +49,13 @@ public class SlotData {
     }
 
     public boolean isEmpty() {
-        return ingredient.isEmpty() && !isFluid;
+        if (isFluid) {
+            // Fluid tag mode: empty if no tag selected
+            if (useFluidTag) return selectedFluidTag == null;
+            // Fluid id mode: empty if no fluid selected
+            return fluidId == null;
+        }
+        return ingredient.isEmpty();
     }
 
     public boolean contains(int mouseX, int mouseY) {
@@ -49,9 +65,14 @@ public class SlotData {
     /** Returns the KubeJS ingredient string for export. */
     public String toKubeJs() {
         if (ingredient.isEmpty() && !isFluid) return "'minecraft:air'";
-        if (isFluid && fluidId != null) {
-            // For vanilla builders; custom recipes use RecipeJsonBuilder directly
-            return "Fluid.of('" + fluidId + "', " + fluidAmount + ")";
+        if (isFluid) {
+            if (useFluidTag && selectedFluidTag != null) {
+                // For vanilla builders; custom recipes use RecipeJsonBuilder directly
+                return "Fluid.of('#" + selectedFluidTag + "', " + fluidAmount + ")";
+            }
+            if (fluidId != null) {
+                return "Fluid.of('" + fluidId + "', " + fluidAmount + ")";
+            }
         }
         // Output slots must always be a concrete item — tags are only valid for inputs
         if (useTag && selectedTag != null && role != RecipeIngredientRole.OUTPUT)
@@ -67,5 +88,8 @@ public class SlotData {
         isFluid = false;
         fluidId = null;
         fluidAmount = 1000L;
+        useFluidTag = false;
+        selectedFluidTag = null;
+        chance = -1f;
     }
 }

@@ -80,7 +80,11 @@ public class RecipeJsonBuilder {
 
         JsonObject obj = new JsonObject();
         if (data.isFluid) {
-            if (data.fluidId != null) obj.addProperty("fluid", data.fluidId.toString());
+            if (data.useFluidTag && data.selectedFluidTag != null) {
+                obj.addProperty("fluidTag", data.selectedFluidTag.toString());
+            } else if (data.fluidId != null) {
+                obj.addProperty("fluid", data.fluidId.toString());
+            }
             obj.addProperty("amount", data.fluidAmount);
         } else if (data.useTag && data.selectedTag != null) {
             obj.addProperty("tag", data.selectedTag.toString());

@@ -26,7 +26,6 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.astronomy.kubejsrecipeeditor.KreConfig;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 import net.astronomy.kubejsrecipeeditor.engine.DescriptorCache;
 import net.astronomy.kubejsrecipeeditor.engine.GuiDescriptorBuilder;
@@ -99,18 +98,22 @@ public class JeiIntegration implements IModPlugin {
         RecipeType<Object> type = category.getRecipeType();
         String uid = type.getUid().toString();
 
-        // Always sample 1 recipe for exampleRecipe — it's a live JEI object, not persistable.
+        boolean isComposting = uid.contains("composting");
+        boolean isFuel       = uid.contains("fuel");
+        boolean isBrewing    = uid.contains("brewing");
+
+        // Sample one recipe for the exampleRecipe reference.
+        // Composting, fuel and brewing may have no JEI recipes but still need to be registered
+        // because RecipeBuilderScreen provides its own dedicated UI for them.
         Object exampleRecipe = mgr.createRecipeLookup(type).get().findFirst().orElse(null);
-        if (exampleRecipe == null) return;
+        if (exampleRecipe == null && !isComposting && !isFuel && !isBrewing) return;
 
         // If the example recipe is not a RecipeHolder, the codec path cannot be used for export.
         // Skip these JEI-display-only categories (grindstone tool-repair, anvil, etc.) unless
-        // they are composting or fuel, which have their own dedicated export path.
-        boolean isComposting = uid.contains("composting");
-        boolean isFuel       = uid.contains("fuel");
-        if (!(exampleRecipe instanceof RecipeHolder) && !isComposting && !isFuel) {
+        // they have their own dedicated export path.
+        if (exampleRecipe != null && !(exampleRecipe instanceof RecipeHolder) && !isComposting && !isFuel && !isBrewing) {
             KubeJsRecipeEditor.LOGGER.debug(
-                    "KRE: skipping JEI-only category (not a RecipeHolder, not composting/fuel): {}", uid);
+                    "KRE: skipping JEI-only category (not a RecipeHolder, not composting/fuel/brewing): {}", uid);
             return;
         }
 
@@ -120,7 +123,11 @@ public class JeiIntegration implements IModPlugin {
             List<SlotCapturingLayoutBuilder.CapturedSlot> slots = cached.slots().stream()
                     .map(s -> new SlotCapturingLayoutBuilder.CapturedSlot(s.parsedRole(), s.x(), s.y()))
                     .toList();
-            if (slots.isEmpty()) return;
+            // Skip only if empty slots AND no codec template (truly display-only, no export possible).
+            // RecipeHolder categories (e.g. Industrial Foregoing) may have 0 JEI slots but CAN be
+            // exported via codec — they have a templateJson in the cache.
+            // Composting/fuel/brewing always proceed regardless.
+            if (slots.isEmpty() && !isComposting && !isFuel && !isBrewing && cached.templateJson() == null) return;
 
             JsonObject exportTemplate = null;
             if (cached.templateJson() != null) {
@@ -162,19 +169,18 @@ public class JeiIntegration implements IModPlugin {
                 KubeJsRecipeEditor.LOGGER.debug("GuiDescriptor build failed (cache hit) for {}: {}", uid, ex.getMessage());
             }
 
-            RecipeTemplateRegistry.INSTANCE.register(template);
+            RecipeTemplateRegistry.INSTANCE.register(template, category);
             KubeJsRecipeEditor.LOGGER.debug("KRE cache hit: {}", uid);
             return;
         }
 
-        // ── Cache miss: full sampling ─────────────────────────────────────────
-        final int SCAN_LIMIT = KreConfig.SCAN_LIMIT.get();
-        List<Object> samples = mgr.createRecipeLookup(type).get().limit(SCAN_LIMIT).toList();
-        if (samples.isEmpty()) return;
+        // ── Cache miss: full sampling — scan ALL recipes of this type ─────────
+        List<Object> samples = mgr.createRecipeLookup(type).get().toList();
+        if (samples.isEmpty() && !isComposting && !isFuel && !isBrewing) return;
 
         int minInput = Integer.MAX_VALUE;
         int maxInput = 0;
-        Object maxSlotRecipe = samples.get(0);
+        Object maxSlotRecipe = samples.isEmpty() ? null : samples.get(0);
 
         for (Object recipe : samples) {
             List<SlotCapturingLayoutBuilder.CapturedSlot> s =
@@ -183,40 +189,41 @@ public class JeiIntegration implements IModPlugin {
             if (cnt < minInput) minInput = (int) cnt;
             if (cnt > maxInput) { maxInput = (int) cnt; maxSlotRecipe = recipe; }
         }
-        if (maxInput == 0 && !isComposting && !isFuel) return;
+        if (minInput == Integer.MAX_VALUE) minInput = 0; // no samples iterated
 
-        List<SlotCapturingLayoutBuilder.CapturedSlot> captured =
-                SlotCapturingLayoutBuilder.capture(category, maxSlotRecipe, emptyFocus);
+        // Skip display-only categories with 0 captured slots, UNLESS they are:
+        // - a special type (composting, fuel, brewing) with dedicated UI
+        // - a RecipeHolder category (can export via codec even with RENDER_ONLY JEI slots, e.g. IF)
+        if (maxInput == 0 && !isComposting && !isFuel && !isBrewing
+                && !(exampleRecipe instanceof RecipeHolder)) return;
+
+        List<SlotCapturingLayoutBuilder.CapturedSlot> captured = maxSlotRecipe != null
+                ? SlotCapturingLayoutBuilder.capture(category, maxSlotRecipe, emptyFocus)
+                : List.of();
         // For RecipeHolder categories (e.g. Industrial Foregoing) that declare all slots as
         // RENDER_ONLY, captured is empty but the category is still exportable via codec.
-        // Only hard-skip truly display-only categories (non-RecipeHolder, non-composting/fuel).
-        if (captured.isEmpty() && !isComposting && !isFuel && !(exampleRecipe instanceof RecipeHolder)) return;
+        // Only hard-skip truly display-only categories (non-RecipeHolder, non-composting/fuel/brewing).
+        if (captured.isEmpty() && !isComposting && !isFuel && !isBrewing && !(exampleRecipe instanceof RecipeHolder)) return;
 
         RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
 
-        // Build codec corpus (SCAN_LIMIT recipes) — used for export template structure.
+        // Build codec corpus (all recipes) — used for export template structure.
         List<JsonObject> corpus = encodeCorpus(samples, regs);
 
-        // Wide RM corpus (up to 500 recipes, cheap JSON parsing only) — used for detection.
-        // Catches optional fields like Create heat_requirement absent from most codec samples.
-        List<Object> wideRecipes = mgr.createRecipeLookup(type).get().limit(500).toList();
-        List<JsonObject> rmCorpus = readCorpusFromResourceManager(wideRecipes, 500);
+        // Wide RM corpus (all recipes, cheap JSON parsing) — used for ExtraParam detection.
+        List<Object> wideRecipes = mgr.createRecipeLookup(type).get().toList();
+        List<JsonObject> rmCorpus = readCorpusFromResourceManager(wideRecipes, Integer.MAX_VALUE);
         List<JsonObject> detectionCorpus = rmCorpus.isEmpty() ? corpus : rmCorpus;
 
         // Export template: codec corpus (authoritative field names) augmented with RM fields.
         JsonObject mergedTemplate = buildMergedExportTemplate(corpus, detectionCorpus);
         List<ExtraParam> extraParams = new ArrayList<>(detectExtraParamsFromCorpus(detectionCorpus));
 
-        // Create recipe types: always expose heatRequirement as an optional ENUM even when no heated
-        // recipes exist in the corpus (the field simply never appears in default Create data packs).
-        if ("create".equals(type.getUid().getNamespace())) {
-            boolean hasHeat = extraParams.stream().anyMatch(ep ->
+        // Sequenced Assembly must not expose heatRequirement even if a stale corpus entry has it.
+        if (mergedTemplate != null && mergedTemplate.has("sequence")) {
+            extraParams.removeIf(ep ->
                     ep.key().equalsIgnoreCase("heatRequirement")
                     || ep.key().equalsIgnoreCase("heat_requirement"));
-            if (!hasHeat) {
-                extraParams.add(new ExtraParam("heatRequirement", ExtraParam.Type.ENUM, "(none)",
-                        List.of("(none)", "heated", "superheated"), Integer.MIN_VALUE));
-            }
         }
 
         String templateJsonStr = mergedTemplate != null ? new Gson().toJson(mergedTemplate) : null;
@@ -258,7 +265,7 @@ public class JeiIntegration implements IModPlugin {
             KubeJsRecipeEditor.LOGGER.debug("GuiDescriptor build failed for {}: {}", uid, ex.getMessage());
         }
 
-        RecipeTemplateRegistry.INSTANCE.register(registryEntry);
+        RecipeTemplateRegistry.INSTANCE.register(registryEntry, category);
         KubeJsRecipeEditor.LOGGER.debug("KRE cache miss, sampled {} recipes: {}", samples.size(), uid);
     }
 
@@ -387,7 +394,7 @@ public class JeiIntegration implements IModPlugin {
         }
         if (!result.isEmpty()) return result;
         // Fallback: read raw JSON directly from server data packs (singleplayer only)
-        List<JsonObject> fromRM = readCorpusFromResourceManager(recipes, KreConfig.SCAN_LIMIT.get());
+        List<JsonObject> fromRM = readCorpusFromResourceManager(recipes, Integer.MAX_VALUE);
         if (!fromRM.isEmpty()) {
             KubeJsRecipeEditor.LOGGER.debug("KRE: loaded {} recipe(s) from ResourceManager (codec unavailable)", fromRM.size());
         }
@@ -525,7 +532,23 @@ public class JeiIntegration implements IModPlugin {
         @Override
         public <I> List<Target<I>> getTargetsTyped(RecipeBuilderScreen gui, ITypedIngredient<I> ingredient, boolean doStart) {
             List<Target<I>> targets = new ArrayList<>();
-            if (!(ingredient.getIngredient() instanceof ItemStack)) return targets;
+            Object ing = ingredient.getIngredient();
+
+            if (ing instanceof net.neoforged.neoforge.fluids.FluidStack fluidStack) {
+                // Fluid ingredient: target all interactive slots — acceptFluidIngredient handles validation
+                for (SlotData slot : gui.getInteractiveSlots()) {
+                    targets.add(new Target<>() {
+                        @Override public Rect2i getArea() { return new Rect2i(slot.x, slot.y, slot.w, slot.h); }
+                        @Override public void accept(I i) {
+                            if (i instanceof net.neoforged.neoforge.fluids.FluidStack fs)
+                                gui.acceptFluidIngredient(slot, fs);
+                        }
+                    });
+                }
+                return targets;
+            }
+
+            if (!(ing instanceof ItemStack)) return targets;
 
             for (SlotData slot : gui.getInteractiveSlots()) {
                 targets.add(new Target<>() {
@@ -534,8 +557,8 @@ public class JeiIntegration implements IModPlugin {
                         return new Rect2i(slot.x, slot.y, slot.w, slot.h);
                     }
                     @Override
-                    public void accept(I ing) {
-                        if (ing instanceof ItemStack stack) gui.acceptIngredient(slot, stack);
+                    public void accept(I i) {
+                        if (i instanceof ItemStack stack) gui.acceptIngredient(slot, stack);
                     }
                 });
             }

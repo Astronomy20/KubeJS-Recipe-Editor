@@ -1,7 +1,6 @@
 # KubeJS Recipe Editor
 
-Minecraft 1.21.1 NeoForge mod for creating and exporting KubeJS 6 recipes in-game.
-Supports all recipe categories from any installed mod, no addon mods required.
+Recipe builder with visual editing, tagging, and instant KubeJS export.i
 
 ## Requirements
 

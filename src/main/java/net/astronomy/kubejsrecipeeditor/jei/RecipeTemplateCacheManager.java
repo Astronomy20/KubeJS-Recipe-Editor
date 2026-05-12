@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 public final class RecipeTemplateCacheManager {
 
-    private static final int CACHE_VERSION = 6;
+    private static final int CACHE_VERSION = 8;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public record CachedSlot(String role, int x, int y) {

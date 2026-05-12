@@ -10,7 +10,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.astronomy.kubejsrecipeeditor.jei.JeiIntegration;
 
 import java.util.*;
-import java.util.stream.Stream;
 
 public class ModMenuScreen extends Screen {
     private static final int TITLE_H   = 50;
@@ -41,19 +40,26 @@ public class ModMenuScreen extends Screen {
         namespaces.clear();
         sections.clear();
 
-        IJeiRuntime runtime = JeiIntegration.getRuntime();
-        if (runtime == null) return;
+        if (JeiIntegration.getRuntime() == null) return;
 
-        Stream<IRecipeCategory<?>> categories = runtime.getRecipeManager()
-                .createRecipeCategoryLookup().get();
+        // Use RecipeTemplateRegistry as the source of truth instead of JEI's
+        // createRecipeCategoryLookup() which may omit categories with no visible JEI recipes
+        // (e.g. Industrial Foregoing with RENDER_ONLY slots, or composting).
+        for (RecipeTemplate template : RecipeTemplateRegistry.INSTANCE.all()) {
+            Optional<IRecipeCategory<?>> catOpt = RecipeTemplateRegistry.INSTANCE.getCategory(template.type());
+            if (catOpt.isEmpty()) continue;
+            IRecipeCategory<?> cat = catOpt.get();
+            if (isTagBrowserCategory(cat)) continue;
 
-        categories.forEach(cat -> {
-            if (isTagBrowserCategory(cat)) return;
-            // Only show categories that have a registered layout template (skip anvil, brewing, etc.)
-            if (RecipeTemplateRegistry.INSTANCE.get(cat.getRecipeType()).isEmpty()) return;
-            String ns = cat.getRecipeType().getUid().getNamespace();
+            String uid = template.type().getUid().toString();
+            String ns  = template.type().getUid().getNamespace();
+            // Remap JEI-internal composting/fuel categories to the "minecraft" section.
+            // Do NOT remap "brewing" — create:automated_brewing must stay in its "create" section.
+            if (uid.contains("composting") || uid.contains("fuel")) {
+                ns = "minecraft";
+            }
             sections.computeIfAbsent(ns, k -> new ArrayList<>()).add(cat);
-        });
+        }
 
         // Sort: "minecraft" first, then alphabetical
         namespaces.addAll(sections.keySet());
