@@ -67,9 +67,8 @@ public class IngredientFormatter {
 
     public static String formatItemStack(ItemStack stack) {
         String id = stack.getItem().builtInRegistryHolder().key().location().toString();
-        if (stack.getCount() > 1) {
-            return "Item.of('" + id + "', " + stack.getCount() + ")";
-        }
+        int count = Math.max(1, stack.getCount());
+        if (count > 1) return "Item.of('" + id + "', " + count + ")";
         return "'" + id + "'";
     }
 

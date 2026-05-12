@@ -32,6 +32,8 @@ public record ExtraParam(
                  "pattern",     "key",
                  "base",        "template", "addition",
                  "group",       "category"  -> true;
+            // NeoForge metadata fields (not user-configurable recipe parameters)
+            case "showNotification", "show_notification" -> true;
             // Mekanism — single/dual item inputs, chemical inputs, output
             case "input",        "output",
                  "main_input",   "extra_input",

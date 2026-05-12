@@ -1,6 +1,7 @@
 package net.astronomy.kubejsrecipeeditor.export;
 
 import com.google.gson.JsonElement;
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.crafting.*;
 import net.astronomy.kubejsrecipeeditor.export.formatters.*;
 
@@ -17,6 +18,15 @@ public class KubeJsFormatter {
         } catch (Exception ignored) {
             // If encoding fails here, GenericFormatter.format() will handle the error properly
         }
+
+        // If the result ItemStack has non-standard data components, vanilla formatters
+        // cannot encode them correctly — redirect to GenericFormatter.
+        try {
+            var result = holder.value().getResultItem(Minecraft.getInstance().level.registryAccess());
+            if (!result.isEmpty() && !result.getComponentsPatch().isEmpty()) {
+                return GenericFormatter.format(holder, false);
+            }
+        } catch (Exception ignored) {}
 
         Recipe<?> recipe = holder.value();
 

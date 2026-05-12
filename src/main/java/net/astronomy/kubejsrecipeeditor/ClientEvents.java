@@ -16,6 +16,8 @@ import net.astronomy.kubejsrecipeeditor.gui.RecipeBuilderMenu;
 import net.astronomy.kubejsrecipeeditor.gui.RecipeBuilderScreen;
 import net.astronomy.kubejsrecipeeditor.gui.RecipeBrowserScreen;
 import net.astronomy.kubejsrecipeeditor.gui.TagEditorScreen;
+import net.astronomy.kubejsrecipeeditor.jei.JeiIntegration;
+import net.minecraft.network.chat.Component;
 
 @EventBusSubscriber(modid = KubeJsRecipeEditor.MOD_ID, value = Dist.CLIENT)
 public class ClientEvents {
@@ -37,6 +39,18 @@ public class ClientEvents {
                     });
                     return 1;
                 })
+                .then(Commands.literal("regenerate_cache")
+                    .executes(ctx -> {
+                        Minecraft mc = Minecraft.getInstance();
+                        mc.tell(() -> {
+                            String result = JeiIntegration.clearCacheAndReload();
+                            if (mc.player != null) {
+                                mc.player.sendSystemMessage(
+                                    Component.literal("[KRE] " + result));
+                            }
+                        });
+                        return 1;
+                    }))
         );
     }
 

@@ -13,7 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class TagSelectionPopup {
+public class TagSelectionPopup implements RecipePopup {
     private static final int ROW_H       = 12;
     private static final int PAD         = 4;
     private static final int W           = 190;

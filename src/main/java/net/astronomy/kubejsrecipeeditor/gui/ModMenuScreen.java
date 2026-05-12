@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class ModMenuScreen extends Screen {
-    private static final int TITLE_H   = 28;
+    private static final int TITLE_H   = 50;
     private static final int BUTTON_W  = 110;
     private static final int BUTTON_H  = 20;
     private static final int BUTTON_PAD = 2;
@@ -28,6 +28,9 @@ public class ModMenuScreen extends Screen {
     private int scrollOffset = 0;
     private int totalContentHeight = 0;
     private boolean draggingScrollbar = false;
+
+    private String exportStatus = "";
+    private int exportStatusColor = 0xFFFFFF;
 
     public ModMenuScreen() {
         super(Component.literal("KubeJS Recipe Editor"));
@@ -62,13 +65,29 @@ public class ModMenuScreen extends Screen {
 
         computeTotalHeight();
 
-        // Tag Editor button — top-left of title bar
+        // Title bar layout: title at top, all three action buttons in the second row
         addRenderableWidget(Button.builder(Component.literal("Tags"), btn -> openTagEditor())
-                .pos(4, 6).size(36, 14).build());
+                .pos(4, 22).size(36, 14).build());
 
-        // Recipe Browser button — top-right of title bar
         addRenderableWidget(Button.builder(Component.literal("Browse"), btn -> openRecipeBrowser())
-                .pos(width - 52, 6).size(48, 14).build());
+                .pos(width - 52, 22).size(48, 14).build());
+
+        addRenderableWidget(Button.builder(Component.literal("Export All"), btn -> exportAll())
+                .pos(width / 2 - 30, 22).size(60, 14).build());
+    }
+
+    private void exportAll() {
+        exportStatus = "Exporting...";
+        exportStatusColor = 0xFFFFFF;
+        try {
+            var result = net.astronomy.kubejsrecipeeditor.export.RecipeExportManager.exportAll();
+            exportStatus = "Exported " + result.categories() + " types, " + result.recipes() + " recipes"
+                    + (result.errors() > 0 ? ", " + result.errors() + " errors" : "");
+            exportStatusColor = result.errors() > 0 ? 0xFFFF5555 : 0xFF55FF55;
+        } catch (Exception e) {
+            exportStatus = "Export failed: " + e.getMessage();
+            exportStatusColor = 0xFFFF5555;
+        }
     }
 
     private void openTagEditor() {
@@ -110,8 +129,11 @@ public class ModMenuScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
 
-        // Title
+        // Title row 1 (y=8); buttons at row 2 (y=22); status at row 3 (y=40, bottom of title bar)
         g.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
+        if (!exportStatus.isEmpty()) {
+            g.drawCenteredString(font, exportStatus, width / 2, 40, exportStatusColor);
+        }
 
         // Scrollable content area
         int contentY = TITLE_H;

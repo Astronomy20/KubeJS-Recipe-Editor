@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 public final class RecipeTemplateCacheManager {
 
-    private static final int CACHE_VERSION = 3;
+    private static final int CACHE_VERSION = 6;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public record CachedSlot(String role, int x, int y) {
@@ -54,6 +54,16 @@ public final class RecipeTemplateCacheManager {
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
+
+    /** Deletes the cache file from disk. Returns true if the file existed and was deleted. */
+    public static boolean deleteCache(Path gameDir) {
+        try {
+            return Files.deleteIfExists(cacheFile(gameDir));
+        } catch (Exception e) {
+            KubeJsRecipeEditor.LOGGER.warn("KRE: failed to delete cache: {}", e.getMessage());
+            return false;
+        }
+    }
 
     /** Loads the cache from disk. Returns an empty (mutable) map if the file is absent, corrupt,
      *  or if the KRE version or mod list has changed since the cache was written. */

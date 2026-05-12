@@ -183,20 +183,42 @@ public class JeiIntegration implements IModPlugin {
             if (cnt < minInput) minInput = (int) cnt;
             if (cnt > maxInput) { maxInput = (int) cnt; maxSlotRecipe = recipe; }
         }
-        if (maxInput == 0) return;
+        if (maxInput == 0 && !isComposting && !isFuel) return;
 
         List<SlotCapturingLayoutBuilder.CapturedSlot> captured =
                 SlotCapturingLayoutBuilder.capture(category, maxSlotRecipe, emptyFocus);
-        if (captured.isEmpty()) return;
+        // For RecipeHolder categories (e.g. Industrial Foregoing) that declare all slots as
+        // RENDER_ONLY, captured is empty but the category is still exportable via codec.
+        // Only hard-skip truly display-only categories (non-RecipeHolder, non-composting/fuel).
+        if (captured.isEmpty() && !isComposting && !isFuel && !(exampleRecipe instanceof RecipeHolder)) return;
 
         RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
 
-        // Build corpus ONCE — codec first, ResourceManager as fallback
+        // Build codec corpus (SCAN_LIMIT recipes) — used for export template structure.
         List<JsonObject> corpus = encodeCorpus(samples, regs);
 
-        // Derive mergedTemplate and extraParams from the same corpus (no extra codec calls)
-        JsonObject mergedTemplate = mergeCorpus(corpus);
-        List<ExtraParam> extraParams = detectExtraParamsFromCorpus(corpus);
+        // Wide RM corpus (up to 500 recipes, cheap JSON parsing only) — used for detection.
+        // Catches optional fields like Create heat_requirement absent from most codec samples.
+        List<Object> wideRecipes = mgr.createRecipeLookup(type).get().limit(500).toList();
+        List<JsonObject> rmCorpus = readCorpusFromResourceManager(wideRecipes, 500);
+        List<JsonObject> detectionCorpus = rmCorpus.isEmpty() ? corpus : rmCorpus;
+
+        // Export template: codec corpus (authoritative field names) augmented with RM fields.
+        JsonObject mergedTemplate = buildMergedExportTemplate(corpus, detectionCorpus);
+        List<ExtraParam> extraParams = new ArrayList<>(detectExtraParamsFromCorpus(detectionCorpus));
+
+        // Create recipe types: always expose heatRequirement as an optional ENUM even when no heated
+        // recipes exist in the corpus (the field simply never appears in default Create data packs).
+        if ("create".equals(type.getUid().getNamespace())) {
+            boolean hasHeat = extraParams.stream().anyMatch(ep ->
+                    ep.key().equalsIgnoreCase("heatRequirement")
+                    || ep.key().equalsIgnoreCase("heat_requirement"));
+            if (!hasHeat) {
+                extraParams.add(new ExtraParam("heatRequirement", ExtraParam.Type.ENUM, "(none)",
+                        List.of("(none)", "heated", "superheated"), Integer.MIN_VALUE));
+            }
+        }
+
         String templateJsonStr = mergedTemplate != null ? new Gson().toJson(mergedTemplate) : null;
 
         // Persist to cache
@@ -280,8 +302,12 @@ public class JeiIntegration implements IModPlugin {
             // Top-level primitive fields only
             for (var entry : obj.entrySet()) {
                 String key = entry.getKey();
-                if (ExtraParam.isStructuralKey(key)) continue;
                 JsonElement val = entry.getValue();
+                if (ExtraParam.isStructuralKey(key)) {
+                    // Exception: numeric primitive structural keys are configurable params
+                    // (e.g. Mekanism energy_conversion uses "output": 40000).
+                    if (!val.isJsonPrimitive() || val.getAsJsonPrimitive().isString()) continue;
+                }
                 if (!val.isJsonPrimitive()) continue;
 
                 JsonPrimitive prim = val.getAsJsonPrimitive();
@@ -299,7 +325,12 @@ public class JeiIntegration implements IModPlugin {
                     double d = prim.getAsDouble();
                     ExtraParam.Type numType = (d == Math.floor(d) && !Double.isInfinite(d))
                             ? ExtraParam.Type.INT : ExtraParam.Type.FLOAT;
-                    detectedType.putIfAbsent(key, numType);
+                    // Allow upgrade from INT to FLOAT when a fractional value is found
+                    // (e.g. smelting "experience": first recipe has 0.0 → INT, later 0.35 → upgrade to FLOAT)
+                    if (!detectedType.containsKey(key) ||
+                            (detectedType.get(key) == ExtraParam.Type.INT && numType == ExtraParam.Type.FLOAT)) {
+                        detectedType.put(key, numType);
+                    }
                     if (numType == ExtraParam.Type.INT) {
                         intMinBound.merge(key, (int) d, Math::min);
                     }
@@ -398,6 +429,29 @@ public class JeiIntegration implements IModPlugin {
         return merged.size() > 0 ? merged : null;
     }
 
+    /**
+     * Builds the export template starting from the codec corpus (authoritative field names/format),
+     * then augments it with any additional fields found in the detection corpus (wider RM-based scan).
+     * This ensures optional fields like heat_requirement appear in the template even when absent
+     * from most codec-sampled recipes.
+     */
+    @Nullable
+    private static JsonObject buildMergedExportTemplate(List<JsonObject> codecCorpus,
+                                                         List<JsonObject> detectionCorpus) {
+        JsonObject merged = new JsonObject();
+        for (JsonObject obj : codecCorpus) {
+            for (var e : obj.entrySet()) {
+                if (!merged.has(e.getKey())) merged.add(e.getKey(), e.getValue());
+            }
+        }
+        for (JsonObject obj : detectionCorpus) {
+            for (var e : obj.entrySet()) {
+                if (!merged.has(e.getKey())) merged.add(e.getKey(), e.getValue());
+            }
+        }
+        return merged.size() > 0 ? merged : null;
+    }
+
 
     // ─── GUI handlers ─────────────────────────────────────────────────────────
 
@@ -444,6 +498,29 @@ public class JeiIntegration implements IModPlugin {
         return jeiRuntime != null;
     }
 
+    /**
+     * Deletes the on-disk cache and re-runs the full template population so all recipe
+     * categories are re-sampled from scratch. Call this from the /kre regenerate_cache command.
+     *
+     * @return human-readable result message
+     */
+    public static String clearCacheAndReload() {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        java.nio.file.Path gameDir = mc.gameDirectory.toPath();
+        boolean deleted = RecipeTemplateCacheManager.deleteCache(gameDir);
+
+        if (jeiRuntime == null) {
+            return deleted
+                    ? "Cache deleted. Open a world and wait for JEI to load to rebuild."
+                    : "No cache file found. JEI runtime not yet available.";
+        }
+
+        // Re-populate fully (bypasses on-disk cache since file was deleted)
+        populateRecipeTemplates(jeiRuntime);
+        int count = RecipeTemplateRegistry.INSTANCE.all().size();
+        return (deleted ? "Cache cleared." : "No cache file.") + " Reloaded " + count + " recipe templates.";
+    }
+
     private static class RecipeBuilderGhostHandler implements IGhostIngredientHandler<RecipeBuilderScreen> {
         @Override
         public <I> List<Target<I>> getTargetsTyped(RecipeBuilderScreen gui, ITypedIngredient<I> ingredient, boolean doStart) {
@@ -458,7 +535,7 @@ public class JeiIntegration implements IModPlugin {
                     }
                     @Override
                     public void accept(I ing) {
-                        if (ing instanceof ItemStack stack) slot.ingredient = stack.copy();
+                        if (ing instanceof ItemStack stack) gui.acceptIngredient(slot, stack);
                     }
                 });
             }
