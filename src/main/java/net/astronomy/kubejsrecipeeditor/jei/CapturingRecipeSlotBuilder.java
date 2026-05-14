@@ -25,15 +25,22 @@ final class CapturingRecipeSlotBuilder implements IRecipeSlotBuilder {
 
     private final SlotCapturingLayoutBuilder parent;
     private final RecipeIngredientRole role;
+    private boolean isFluid = false;
+    private int mySlotIndex = -1;
 
     CapturingRecipeSlotBuilder(SlotCapturingLayoutBuilder parent, RecipeIngredientRole role) {
         this.parent = parent;
         this.role = role;
     }
 
+    private void markFluid() {
+        isFluid = true;
+        if (mySlotIndex >= 0) parent.updateSlotFluid(mySlotIndex);
+    }
+
     @Override
     public IRecipeSlotBuilder setPosition(int xPos, int yPos) {
-        parent.recordSlot(role, xPos, yPos);
+        mySlotIndex = parent.recordSlotAndGetIndex(role, xPos, yPos, isFluid);
         return this;
     }
 
@@ -97,6 +104,7 @@ final class CapturingRecipeSlotBuilder implements IRecipeSlotBuilder {
 
     @Override
     public IRecipeSlotBuilder setFluidRenderer(long capacity, boolean showCapacity, int width, int height) {
+        markFluid();
         return this;
     }
 
@@ -132,16 +140,19 @@ final class CapturingRecipeSlotBuilder implements IRecipeSlotBuilder {
 
     @Override
     public IRecipeSlotBuilder addFluidStack(Fluid fluid) {
+        markFluid();
         return this;
     }
 
     @Override
     public IRecipeSlotBuilder addFluidStack(Fluid fluid, long amount) {
+        markFluid();
         return this;
     }
 
     @Override
     public IRecipeSlotBuilder addFluidStack(Fluid fluid, long amount, DataComponentPatch component) {
+        markFluid();
         return this;
     }
 }

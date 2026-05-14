@@ -2,7 +2,6 @@ package net.astronomy.kubejsrecipeeditor.engine;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import mezz.jei.api.recipe.IRecipeManager;
 import net.minecraft.core.RegistryAccess;
@@ -46,9 +45,14 @@ public class RecipeJsonExtractor {
                     .forEach(recipe -> {
                         if (!(recipe instanceof RecipeHolder<?> holder)) return;
                         try {
+                            // RecipeSerializer.codec() returns MapCodec<T>, not Codec<T>.
+                            // Call .codec() on it to get a proper Codec wrapper.
                             @SuppressWarnings({"rawtypes", "unchecked"})
-                            Codec<Object> codec = (Codec<Object>) holder.value().getSerializer().codec();
-                            JsonElement el = codec.encodeStart(ops, holder.value()).getOrThrow();
+                            com.mojang.serialization.Codec codec =
+                                ((com.mojang.serialization.MapCodec) holder.value().getSerializer().codec())
+                                    .codec();
+                            @SuppressWarnings("unchecked")
+                            JsonElement el = (JsonElement) codec.encodeStart(ops, holder.value()).getOrThrow();
                             if (el.isJsonObject()) corpus.add(el.getAsJsonObject());
                         } catch (Exception e) {
                             LOGGER.debug("Could not encode recipe for type {}: {}", typeUid, e.getMessage());

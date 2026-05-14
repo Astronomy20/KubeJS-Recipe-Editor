@@ -144,12 +144,16 @@ public class GuiDescriptorBuilder {
                     || corpus.stream().anyMatch(j -> j.has(field) && j.get(field).isJsonArray());
             for (int i = 0; i < positions.size() && inputIdx < inputSlots.size(); i++, inputIdx++) {
                 var pos = positions.get(i);
-                result.add(new SlotDescriptor(
-                        inputSlots.get(inputIdx).x(), inputSlots.get(inputIdx).y(),
-                        inputSlots.get(inputIdx).role(),
-                        field, isArray ? i : -1,
-                        pos.accepts(), pos.isOptional(),
-                        toContentTypes(pos.accepts())));
+                CapturedSlot cs = inputSlots.get(inputIdx);
+                // JEI-captured isFluid takes precedence over corpus analysis
+                Set<SlotDescriptor.SlotContentType> legacyAccepts = cs.isFluid()
+                    ? Set.of(SlotDescriptor.SlotContentType.FLUID, SlotDescriptor.SlotContentType.TAG_FLUID)
+                    : pos.accepts();
+                Set<ContentType> newAccepts = cs.isFluid()
+                    ? Set.of(ContentType.FLUID)
+                    : toContentTypes(pos.accepts());
+                result.add(new SlotDescriptor(cs.x(), cs.y(), cs.role(),
+                        field, isArray ? i : -1, legacyAccepts, pos.isOptional(), newAccepts));
             }
         }
 
@@ -160,12 +164,15 @@ public class GuiDescriptorBuilder {
                     || corpus.stream().anyMatch(j -> j.has(field) && j.get(field).isJsonArray());
             for (int i = 0; i < positions.size() && outputIdx < outputSlots.size(); i++, outputIdx++) {
                 var pos = positions.get(i);
-                result.add(new SlotDescriptor(
-                        outputSlots.get(outputIdx).x(), outputSlots.get(outputIdx).y(),
-                        outputSlots.get(outputIdx).role(),
-                        field, isArray ? i : -1,
-                        pos.accepts(), pos.isOptional(),
-                        toContentTypes(pos.accepts())));
+                CapturedSlot cs = outputSlots.get(outputIdx);
+                Set<SlotDescriptor.SlotContentType> legacyAccepts = cs.isFluid()
+                    ? Set.of(SlotDescriptor.SlotContentType.FLUID, SlotDescriptor.SlotContentType.TAG_FLUID)
+                    : pos.accepts();
+                Set<ContentType> newAccepts = cs.isFluid()
+                    ? Set.of(ContentType.FLUID)
+                    : toContentTypes(pos.accepts());
+                result.add(new SlotDescriptor(cs.x(), cs.y(), cs.role(),
+                        field, isArray ? i : -1, legacyAccepts, pos.isOptional(), newAccepts));
             }
         }
 

@@ -20,13 +20,33 @@ import java.util.Set;
  */
 public final class SlotCapturingLayoutBuilder implements IRecipeLayoutBuilder {
 
-    public record CapturedSlot(RecipeIngredientRole role, int x, int y) {}
+    public record CapturedSlot(RecipeIngredientRole role, int x, int y, boolean isFluid) {
+        // backward-compat constructor without isFluid
+        public CapturedSlot(RecipeIngredientRole role, int x, int y) {
+            this(role, x, y, false);
+        }
+    }
 
     private final List<CapturedSlot> capturedSlots = new ArrayList<>();
     private final NoopInvisibleIngredientAcceptor invisibleAcceptor = new NoopInvisibleIngredientAcceptor();
 
     void recordSlot(RecipeIngredientRole role, int x, int y) {
-        capturedSlots.add(new CapturedSlot(role, x, y));
+        recordSlotAndGetIndex(role, x, y, false);
+    }
+
+    /** Called by CapturingRecipeSlotBuilder when it first records a position, returns the index. */
+    int recordSlotAndGetIndex(RecipeIngredientRole role, int x, int y, boolean isFluid) {
+        int idx = capturedSlots.size();
+        capturedSlots.add(new CapturedSlot(role, x, y, isFluid));
+        return idx;
+    }
+
+    /** Updates an already-recorded slot to mark it as a fluid slot. */
+    void updateSlotFluid(int index) {
+        if (index >= 0 && index < capturedSlots.size()) {
+            CapturedSlot s = capturedSlots.get(index);
+            capturedSlots.set(index, new CapturedSlot(s.role(), s.x(), s.y(), true));
+        }
     }
 
     @Override
