@@ -125,20 +125,30 @@ public class JeiIntegration implements IModPlugin {
                 modlistHash.substring(0, 8));
 
             SchemaInferenceEngine engine = new SchemaInferenceEngine(resolver);
-            RecipeJsonExtractor extractor = new RecipeJsonExtractor();
-
-            Map<ResourceLocation, List<JsonObject>> corpus = extractor.extractAll(
-                runtime.getRecipeManager(), regs);
+            IRecipeManager mgr = runtime.getRecipeManager();
 
             int count = 0;
-            for (var entry : corpus.entrySet()) {
+            for (var categoryObj : mgr.createRecipeCategoryLookup().get().toList()) {
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                IRecipeCategory<Object> category = (IRecipeCategory) categoryObj;
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                RecipeType<Object> type = (RecipeType<Object>) category.getRecipeType();
+                ResourceLocation typeUid = type.getUid();
                 try {
-                    var root = engine.infer(entry.getKey(), entry.getValue());
-                    TemplateRegistry.INSTANCE.register(entry.getKey(), root);
+                    List<Object> samples = mgr.createRecipeLookup(type).get().toList();
+                    // For JEI wrapper categories, fall back to MC recipe manager
+                    if (!samples.isEmpty() && !(samples.get(0) instanceof RecipeHolder)) {
+                        List<Object> mcSamples = findMcRecipesForType(typeUid);
+                        if (!mcSamples.isEmpty()) samples = mcSamples;
+                    }
+                    List<JsonObject> corpus = encodeCorpus(samples, regs);
+                    if (corpus.isEmpty()) continue;
+
+                    var root = engine.infer(typeUid, corpus);
+                    TemplateRegistry.INSTANCE.register(typeUid, root);
                     count++;
                 } catch (Exception e) {
-                    KubeJsRecipeEditor.LOGGER.debug("SchemaInferenceEngine failed for {}: {}",
-                        entry.getKey(), e.getMessage());
+                    KubeJsRecipeEditor.LOGGER.debug("Engine failed for {}: {}", typeUid, e.getMessage());
                 }
             }
 
@@ -169,13 +179,19 @@ public class JeiIntegration implements IModPlugin {
         Object exampleRecipe = mgr.createRecipeLookup(type).get().findFirst().orElse(null);
         if (exampleRecipe == null && !isComposting && !isFuel && !isBrewing) return;
 
-        // If the example recipe is not a RecipeHolder, the codec path cannot be used for export.
-        // Skip these JEI-display-only categories (grindstone tool-repair, anvil, etc.) unless
-        // they have their own dedicated export path.
+        // If the JEI category uses custom wrappers (not RecipeHolder), try the MC recipe manager
+        // as a fallback (e.g. Mystical Agriculture Awakening, Enchanter, etc.).
+        // Pure JEI-display categories (grindstone, anvil) have no MC recipes and are skipped.
         if (exampleRecipe != null && !(exampleRecipe instanceof RecipeHolder) && !isComposting && !isFuel && !isBrewing) {
-            KubeJsRecipeEditor.LOGGER.debug(
-                    "KRE: skipping JEI-only category (not a RecipeHolder, not composting/fuel/brewing): {}", uid);
-            return;
+            List<Object> mcRecipes = findMcRecipesForType(type.getUid());
+            if (mcRecipes.isEmpty()) {
+                KubeJsRecipeEditor.LOGGER.debug(
+                        "KRE: skipping JEI-only category (no MC recipes): {}", uid);
+                return;
+            }
+            // Use MC RecipeHolder as canonical example so instanceof checks below pass
+            exampleRecipe = mcRecipes.get(0);
+            KubeJsRecipeEditor.LOGGER.debug("KRE: JEI wrapper → MC fallback for: {}", uid);
         }
 
         // ── Cache hit ────────────────────────────────────────────────────────
@@ -240,6 +256,11 @@ public class JeiIntegration implements IModPlugin {
         // ── Cache miss: full sampling — scan ALL recipes of this type ─────────
         List<Object> samples = mgr.createRecipeLookup(type).get().toList();
         if (samples.isEmpty() && !isComposting && !isFuel && !isBrewing) return;
+        // For JEI wrapper categories (non-RecipeHolder), use MC RecipeHolder for corpus encoding.
+        // JEI wrappers are kept in 'samples' because they are needed for slot capture.
+        List<Object> corpusSamples = (!samples.isEmpty() && !(samples.get(0) instanceof RecipeHolder))
+            ? findMcRecipesForType(type.getUid()) : samples;
+        if (corpusSamples.isEmpty()) corpusSamples = samples; // last resort fallback
 
         int minInput = Integer.MAX_VALUE;
         int maxInput = 0;
@@ -271,11 +292,10 @@ public class JeiIntegration implements IModPlugin {
         RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
 
         // Build codec corpus (all recipes) — used for export template structure.
-        List<JsonObject> corpus = encodeCorpus(samples, regs);
+        List<JsonObject> corpus = encodeCorpus(corpusSamples, regs);
 
         // Wide RM corpus (all recipes, cheap JSON parsing) — used for ExtraParam detection.
-        List<Object> wideRecipes = mgr.createRecipeLookup(type).get().toList();
-        List<JsonObject> rmCorpus = readCorpusFromResourceManager(wideRecipes, Integer.MAX_VALUE);
+        List<JsonObject> rmCorpus = readCorpusFromResourceManager(corpusSamples, Integer.MAX_VALUE);
         List<JsonObject> detectionCorpus = rmCorpus.isEmpty() ? corpus : rmCorpus;
 
         // Export template: codec corpus (authoritative field names) augmented with RM fields.
@@ -591,6 +611,25 @@ public class JeiIntegration implements IModPlugin {
         populateRecipeTemplates(jeiRuntime);
         int count = RecipeTemplateRegistry.INSTANCE.all().size();
         return (deleted ? "Cache cleared." : "No cache file.") + " Reloaded " + count + " recipe templates.";
+    }
+
+    /**
+     * Looks up all recipes of the given type directly from the MC recipe manager.
+     * Used as a fallback when JEI exposes custom wrappers (not RecipeHolder) for a category
+     * (e.g. Mystical Agriculture awakening, enchanter, infusion, etc.).
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static List<Object> findMcRecipesForType(ResourceLocation typeUid) {
+        try {
+            if (Minecraft.getInstance().level == null) return List.of();
+            net.minecraft.world.item.crafting.RecipeType<?> mcType =
+                net.minecraft.core.registries.BuiltInRegistries.RECIPE_TYPE.get(typeUid);
+            if (mcType == null) return List.of();
+            return (List<Object>) (List<?>) Minecraft.getInstance().level.getRecipeManager()
+                .getAllRecipesFor((net.minecraft.world.item.crafting.RecipeType) mcType);
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     /**

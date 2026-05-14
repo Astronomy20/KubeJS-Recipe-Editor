@@ -233,6 +233,6 @@ public final class RecipeTemplateCacheManager {
     }
 
     private static Path cacheFile(Path gameDir) {
-        return gameDir.resolve("config/kubejsrecipeeditor_cache.json");
+        return gameDir.resolve("config/kubejsrecipeeditor/kubejsrecipeeditor_cache.json");
     }
 }
