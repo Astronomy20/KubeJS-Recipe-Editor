@@ -3,11 +3,8 @@
 Recipe builder with visual editing, tagging, and instant KubeJS export.
 
 ## Requirements
-
-- Minecraft 1.21.1
-- NeoForge 21.1.x
-- KubeJS 6 (2101.x)
-- JEI 19.x (bundled - installed automatically if not already present)
+- KubeJS
+- JEI (bundled - installed automatically if not already present)
 
 ## Usage
 
