@@ -1,6 +1,7 @@
 package net.astronomy.kubejsrecipeeditor.gui;
 
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import net.astronomy.kubejsrecipeeditor.engine.ContentType;
 import net.astronomy.kubejsrecipeeditor.jei.SlotCapturingLayoutBuilder.CapturedSlot;
 
 import java.util.Set;
@@ -16,7 +17,9 @@ public record SlotDescriptor(
         String jsonField,
         int jsonArrayIndex,
         Set<SlotContentType> accepts,
-        boolean optional
+        boolean optional,
+        /** New-style ContentType set used by the FieldDescriptor-based system. May be empty. */
+        Set<ContentType> acceptedTypes
 ) {
     public enum SlotContentType { ITEM, TAG_ITEM, FLUID, TAG_FLUID }
 
@@ -27,6 +30,6 @@ public record SlotDescriptor(
     public static SlotDescriptor fromCaptured(CapturedSlot captured, String jsonField,
             int jsonArrayIndex, Set<SlotContentType> accepts, boolean optional) {
         return new SlotDescriptor(captured.x(), captured.y(), captured.role(),
-                jsonField, jsonArrayIndex, accepts, optional);
+                jsonField, jsonArrayIndex, accepts, optional, Set.of());
     }
 }

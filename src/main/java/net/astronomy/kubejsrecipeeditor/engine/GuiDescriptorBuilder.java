@@ -3,6 +3,7 @@ package net.astronomy.kubejsrecipeeditor.engine;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import net.astronomy.kubejsrecipeeditor.engine.ContentType;
 import net.astronomy.kubejsrecipeeditor.gui.*;
 import net.astronomy.kubejsrecipeeditor.jei.SlotCapturingLayoutBuilder.CapturedSlot;
 import net.minecraft.resources.ResourceLocation;
@@ -143,9 +144,12 @@ public class GuiDescriptorBuilder {
                     || corpus.stream().anyMatch(j -> j.has(field) && j.get(field).isJsonArray());
             for (int i = 0; i < positions.size() && inputIdx < inputSlots.size(); i++, inputIdx++) {
                 var pos = positions.get(i);
-                result.add(SlotDescriptor.fromCaptured(
-                        inputSlots.get(inputIdx), field,
-                        isArray ? i : -1, pos.accepts(), pos.isOptional()));
+                result.add(new SlotDescriptor(
+                        inputSlots.get(inputIdx).x(), inputSlots.get(inputIdx).y(),
+                        inputSlots.get(inputIdx).role(),
+                        field, isArray ? i : -1,
+                        pos.accepts(), pos.isOptional(),
+                        toContentTypes(pos.accepts())));
             }
         }
 
@@ -156,9 +160,12 @@ public class GuiDescriptorBuilder {
                     || corpus.stream().anyMatch(j -> j.has(field) && j.get(field).isJsonArray());
             for (int i = 0; i < positions.size() && outputIdx < outputSlots.size(); i++, outputIdx++) {
                 var pos = positions.get(i);
-                result.add(SlotDescriptor.fromCaptured(
-                        outputSlots.get(outputIdx), field,
-                        isArray ? i : -1, pos.accepts(), pos.isOptional()));
+                result.add(new SlotDescriptor(
+                        outputSlots.get(outputIdx).x(), outputSlots.get(outputIdx).y(),
+                        outputSlots.get(outputIdx).role(),
+                        field, isArray ? i : -1,
+                        pos.accepts(), pos.isOptional(),
+                        toContentTypes(pos.accepts())));
             }
         }
 
@@ -166,7 +173,7 @@ public class GuiDescriptorBuilder {
             result.add(new SlotDescriptor(cat.x(), cat.y(), RecipeIngredientRole.CATALYST,
                     "catalyst", -1,
                     Set.of(SlotDescriptor.SlotContentType.ITEM, SlotDescriptor.SlotContentType.TAG_ITEM),
-                    true));
+                    true, Set.of(ContentType.ITEM, ContentType.ITEM_TAG)));
         }
 
         return result;
@@ -225,5 +232,19 @@ public class GuiDescriptorBuilder {
         Set<String> keys = new LinkedHashSet<>();
         corpus.forEach(j -> j.keySet().forEach(keys::add));
         return keys;
+    }
+
+    /** Translates legacy SlotContentType set to the new ContentType enum set. */
+    private static Set<ContentType> toContentTypes(Set<SlotDescriptor.SlotContentType> old) {
+        Set<ContentType> result = new LinkedHashSet<>();
+        for (var sc : old) {
+            switch (sc) {
+                case ITEM     -> result.add(ContentType.ITEM);
+                case TAG_ITEM -> result.add(ContentType.ITEM_TAG);
+                case FLUID    -> result.add(ContentType.FLUID);
+                case TAG_FLUID -> result.add(ContentType.FLUID); // treated as FLUID for drop validation
+            }
+        }
+        return result;
     }
 }

@@ -1,9 +1,10 @@
 package net.astronomy.kubejsrecipeeditor.gui;
 
 import mezz.jei.api.recipe.RecipeIngredientRole;
+import net.astronomy.kubejsrecipeeditor.engine.ContentType;
+import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.astronomy.kubejsrecipeeditor.export.IngredientFormatter;
 
 public class SlotData {
     public final int x;
@@ -27,6 +28,9 @@ public class SlotData {
     public boolean useFluidTag = false;
     /** The fluid tag ResourceLocation to use when {@code useFluidTag} is true. */
     public ResourceLocation selectedFluidTag = null;
+
+    /** ContentType of the current content. Updated when content is assigned. */
+    public ContentType contentType = ContentType.UNKNOWN;
 
     // JEI-relative coordinates for RecipeJsonBuilder matching (-1 = not from CapturedSlot)
     public int jeiRelX = -1;
@@ -91,5 +95,6 @@ public class SlotData {
         useFluidTag = false;
         selectedFluidTag = null;
         chance = -1f;
+        contentType = ContentType.UNKNOWN;
     }
 }

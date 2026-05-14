@@ -29,6 +29,10 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.astronomy.kubejsrecipeeditor.KubeJsRecipeEditor;
 import net.astronomy.kubejsrecipeeditor.engine.DescriptorCache;
 import net.astronomy.kubejsrecipeeditor.engine.GuiDescriptorBuilder;
+import net.astronomy.kubejsrecipeeditor.engine.RecipeJsonExtractor;
+import net.astronomy.kubejsrecipeeditor.engine.RegistryResolver;
+import net.astronomy.kubejsrecipeeditor.engine.SchemaInferenceEngine;
+import net.astronomy.kubejsrecipeeditor.engine.TemplateRegistry;
 import net.astronomy.kubejsrecipeeditor.gui.ExtraParam;
 import net.astronomy.kubejsrecipeeditor.gui.GuiDescriptor;
 import net.astronomy.kubejsrecipeeditor.gui.RecipeBuilderScreen;
@@ -58,6 +62,7 @@ public class JeiIntegration implements IModPlugin {
     public void onRuntimeAvailable(IJeiRuntime runtime) {
         jeiRuntime = runtime;
         populateRecipeTemplates(runtime);
+        populateEngineTemplates(runtime);
         KubeJsRecipeEditor.LOGGER.debug("JEI runtime available; recipe templates registered: {}", RecipeTemplateRegistry.INSTANCE.all().size());
     }
 
@@ -65,6 +70,7 @@ public class JeiIntegration implements IModPlugin {
     public void onRuntimeUnavailable() {
         RecipeTemplateRegistry.INSTANCE.clear();
         DescriptorCache.INSTANCE.clear();
+        TemplateRegistry.INSTANCE.clear();
         jeiRuntime = null;
     }
 
@@ -87,6 +93,41 @@ public class JeiIntegration implements IModPlugin {
                 KubeJsRecipeEditor.LOGGER.debug("Skipping recipe template: {}", ex.getMessage());
             }
         });
+    }
+
+    /**
+     * Second-pass initialization: runs SchemaInferenceEngine on the full recipe corpus
+     * and populates TemplateRegistry with FieldDescriptor trees for each recipe type.
+     * This runs after the legacy populateRecipeTemplates() so both systems coexist during migration.
+     */
+    private static void populateEngineTemplates(IJeiRuntime runtime) {
+        try {
+            RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
+            RegistryResolver resolver = new RegistryResolver(regs);
+            SchemaInferenceEngine engine = new SchemaInferenceEngine(resolver);
+            RecipeJsonExtractor extractor = new RecipeJsonExtractor();
+
+            TemplateRegistry.INSTANCE.setRegistryResolver(resolver);
+
+            Map<ResourceLocation, List<JsonObject>> corpus = extractor.extractAll(
+                runtime.getRecipeManager(), regs);
+
+            int count = 0;
+            for (var entry : corpus.entrySet()) {
+                try {
+                    var root = engine.infer(entry.getKey(), entry.getValue());
+                    TemplateRegistry.INSTANCE.register(entry.getKey(), root);
+                    count++;
+                } catch (Exception e) {
+                    KubeJsRecipeEditor.LOGGER.debug("SchemaInferenceEngine failed for {}: {}",
+                        entry.getKey(), e.getMessage());
+                }
+            }
+
+            KubeJsRecipeEditor.LOGGER.debug("TemplateRegistry populated: {} recipe types", count);
+        } catch (Exception e) {
+            KubeJsRecipeEditor.LOGGER.warn("populateEngineTemplates failed: {}", e.getMessage());
+        }
     }
 
     @SuppressWarnings("removal")
@@ -146,6 +187,7 @@ public class JeiIntegration implements IModPlugin {
                     cached.maxInputSlots(),
                     cached.extraParams(),
                     exportTemplate,
+                    null,
                     null);
 
             // Build GuiDescriptor for cache-hit templates (in-memory only, not persisted)
@@ -163,7 +205,8 @@ public class JeiIntegration implements IModPlugin {
                             template.type(), template.title(), template.background(),
                             template.icon(), template.slots(), template.exampleRecipe(),
                             template.minInputSlots(), template.maxInputSlots(),
-                            template.extraParams(), effectiveTemplate, descriptor);
+                            template.extraParams(), effectiveTemplate, descriptor,
+                            null);
                 }
             } catch (Exception ex) {
                 KubeJsRecipeEditor.LOGGER.debug("GuiDescriptor build failed (cache hit) for {}: {}", uid, ex.getMessage());
@@ -248,6 +291,7 @@ public class JeiIntegration implements IModPlugin {
                 maxInput,
                 extraParams,
                 mergedTemplate,
+                null,
                 null);
 
         // Build GuiDescriptor from the same corpus
@@ -259,7 +303,8 @@ public class JeiIntegration implements IModPlugin {
                         registryEntry.type(), registryEntry.title(), registryEntry.background(),
                         registryEntry.icon(), registryEntry.slots(), registryEntry.exampleRecipe(),
                         registryEntry.minInputSlots(), registryEntry.maxInputSlots(),
-                        registryEntry.extraParams(), registryEntry.exportTemplate(), descriptor);
+                        registryEntry.extraParams(), registryEntry.exportTemplate(), descriptor,
+                        null);
             }
         } catch (Exception ex) {
             KubeJsRecipeEditor.LOGGER.debug("GuiDescriptor build failed for {}: {}", uid, ex.getMessage());

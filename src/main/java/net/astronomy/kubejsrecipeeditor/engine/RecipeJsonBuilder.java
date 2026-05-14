@@ -1,6 +1,7 @@
 package net.astronomy.kubejsrecipeeditor.engine;
 
 import com.google.gson.*;
+import net.astronomy.kubejsrecipeeditor.engine.ContentType;
 import net.astronomy.kubejsrecipeeditor.gui.*;
 
 import java.util.*;
@@ -79,6 +80,23 @@ public class RecipeJsonBuilder {
         if (data.isEmpty()) return JsonNull.INSTANCE;
 
         JsonObject obj = new JsonObject();
+
+        // Chemical types (Mekanism) — detected via contentType field
+        ContentType ct = data.contentType;
+        if (ct == ContentType.CHEMICAL_GAS || ct == ContentType.CHEMICAL_SLURRY
+                || ct == ContentType.CHEMICAL_INFUSE || ct == ContentType.CHEMICAL_PIGMENT) {
+            String chemKey = switch (ct) {
+                case CHEMICAL_GAS    -> "gas";
+                case CHEMICAL_SLURRY -> "slurry";
+                case CHEMICAL_INFUSE -> "infuse_type";
+                case CHEMICAL_PIGMENT -> "pigment";
+                default -> "gas";
+            };
+            if (data.fluidId != null) obj.addProperty(chemKey, data.fluidId.toString());
+            obj.addProperty("amount", data.fluidAmount);
+            return obj;
+        }
+
         if (data.isFluid) {
             if (data.useFluidTag && data.selectedFluidTag != null) {
                 obj.addProperty("fluidTag", data.selectedFluidTag.toString());

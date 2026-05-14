@@ -3,6 +3,7 @@ package net.astronomy.kubejsrecipeeditor.gui;
 import com.google.gson.JsonObject;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.recipe.RecipeType;
+import net.astronomy.kubejsrecipeeditor.engine.FieldDescriptor;
 import net.astronomy.kubejsrecipeeditor.jei.SlotCapturingLayoutBuilder;
 
 import javax.annotation.Nullable;
@@ -35,5 +36,7 @@ public record RecipeTemplate(
          */
         @Nullable JsonObject exportTemplate,
         /** GUI descriptor built by the template engine. Null until JEI runtime populates it. */
-        @Nullable GuiDescriptor guiDescriptor
+        @Nullable GuiDescriptor guiDescriptor,
+        /** FieldDescriptor tree inferred by SchemaInferenceEngine. Null until Fase C populates it. */
+        @Nullable FieldDescriptor.ObjectField fieldDescriptor
 ) {}
