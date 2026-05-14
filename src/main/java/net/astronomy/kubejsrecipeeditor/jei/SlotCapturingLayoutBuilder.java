@@ -18,6 +18,7 @@ import java.util.Set;
  * Intercepts {@link IRecipeCategory#setRecipe}'s slot declarations without rendering.
  * JEI 19.19+: slots are positioned via fluent {@link IRecipeSlotBuilder#setPosition}.
  */
+@SuppressWarnings({"removal", "deprecation"})
 public final class SlotCapturingLayoutBuilder implements IRecipeLayoutBuilder {
 
     public record CapturedSlot(RecipeIngredientRole role, int x, int y, boolean isFluid) {

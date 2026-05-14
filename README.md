@@ -1,6 +1,6 @@
 # KubeJS Recipe Editor
 
-Recipe builder with visual editing, tagging, and instant KubeJS export.i
+Recipe builder with visual editing, tagging, and instant KubeJS export.
 
 ## Requirements
 
