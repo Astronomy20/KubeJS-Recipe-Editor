@@ -51,6 +51,18 @@ public class ClientEvents {
                         });
                         return 1;
                     }))
+                .then(Commands.literal("regenerate_templates")
+                    .executes(ctx -> {
+                        Minecraft mc = Minecraft.getInstance();
+                        mc.tell(() -> {
+                            String result = JeiIntegration.clearTemplatesAndReload();
+                            if (mc.player != null) {
+                                mc.player.sendSystemMessage(
+                                    Component.literal("[KRE] " + result));
+                            }
+                        });
+                        return 1;
+                    }))
         );
     }
 

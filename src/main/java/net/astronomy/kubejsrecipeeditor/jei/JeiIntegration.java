@@ -96,18 +96,36 @@ public class JeiIntegration implements IModPlugin {
     }
 
     /**
-     * Second-pass initialization: runs SchemaInferenceEngine on the full recipe corpus
-     * and populates TemplateRegistry with FieldDescriptor trees for each recipe type.
-     * This runs after the legacy populateRecipeTemplates() so both systems coexist during migration.
+     * Second-pass initialization: populates TemplateRegistry with FieldDescriptor trees.
+     * Fast path: loads from disk if modlist hash matches.
+     * Slow path: runs RecipeJsonExtractor + SchemaInferenceEngine, then saves to disk.
      */
     private static void populateEngineTemplates(IJeiRuntime runtime) {
         try {
+            java.nio.file.Path gameDir = Minecraft.getInstance().gameDirectory.toPath();
             RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
             RegistryResolver resolver = new RegistryResolver(regs);
-            SchemaInferenceEngine engine = new SchemaInferenceEngine(resolver);
-            RecipeJsonExtractor extractor = new RecipeJsonExtractor();
 
             TemplateRegistry.INSTANCE.setRegistryResolver(resolver);
+
+            // Always load fragments first (they are applied on register)
+            TemplateRegistry.INSTANCE.loadFragments(gameDir);
+
+            String modlistHash = TemplateRegistry.computeModlistHash();
+
+            // Fast path: load from disk if hash matches
+            if (TemplateRegistry.INSTANCE.loadFromDisk(gameDir, modlistHash)) {
+                KubeJsRecipeEditor.LOGGER.debug("TemplateRegistry: loaded from disk (hash {})",
+                    modlistHash.substring(0, 8));
+                return;
+            }
+
+            // Slow path: extract + infer + save
+            KubeJsRecipeEditor.LOGGER.debug("TemplateRegistry: regenerating (hash {})",
+                modlistHash.substring(0, 8));
+
+            SchemaInferenceEngine engine = new SchemaInferenceEngine(resolver);
+            RecipeJsonExtractor extractor = new RecipeJsonExtractor();
 
             Map<ResourceLocation, List<JsonObject>> corpus = extractor.extractAll(
                 runtime.getRecipeManager(), regs);
@@ -124,7 +142,9 @@ public class JeiIntegration implements IModPlugin {
                 }
             }
 
-            KubeJsRecipeEditor.LOGGER.debug("TemplateRegistry populated: {} recipe types", count);
+            KubeJsRecipeEditor.LOGGER.debug("TemplateRegistry: inferred {} recipe types, saving to disk", count);
+            TemplateRegistry.INSTANCE.saveToDisk(gameDir, modlistHash);
+
         } catch (Exception e) {
             KubeJsRecipeEditor.LOGGER.warn("populateEngineTemplates failed: {}", e.getMessage());
         }
@@ -571,6 +591,24 @@ public class JeiIntegration implements IModPlugin {
         populateRecipeTemplates(jeiRuntime);
         int count = RecipeTemplateRegistry.INSTANCE.all().size();
         return (deleted ? "Cache cleared." : "No cache file.") + " Reloaded " + count + " recipe templates.";
+    }
+
+    /**
+     * Invalidates the TemplateRegistry disk cache and re-runs schema inference.
+     * Call from /kre regenerate_templates command.
+     */
+    public static String clearTemplatesAndReload() {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        java.nio.file.Path gameDir = mc.gameDirectory.toPath();
+        TemplateRegistry.INSTANCE.invalidateDiskCache(gameDir);
+        TemplateRegistry.INSTANCE.clear();
+
+        if (jeiRuntime == null) {
+            return "Templates cleared. Open a world and wait for JEI to load to rebuild.";
+        }
+        populateEngineTemplates(jeiRuntime);
+        int count = TemplateRegistry.INSTANCE.getRegisteredTypes().size();
+        return "Templates regenerated: " + count + " recipe types.";
     }
 
     private static class RecipeBuilderGhostHandler implements IGhostIngredientHandler<RecipeBuilderScreen> {

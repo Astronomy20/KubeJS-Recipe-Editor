@@ -1,22 +1,33 @@
 package net.astronomy.kubejsrecipeeditor.engine;
 
+import com.google.gson.*;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * In-memory registry of SuperTemplates (inferred FieldDescriptor trees per recipe type).
+ * Registry of SuperTemplates (inferred FieldDescriptor trees per recipe type).
  * Applies Fragment overrides at registration time.
- * Disk persistence is implemented in a later phase (Fase E).
+ * Supports disk persistence in config/kubejsrecipeeditor/templates/ with modlist-hash invalidation.
  */
 public class TemplateRegistry {
 
     public static final TemplateRegistry INSTANCE = new TemplateRegistry();
 
     private static final Logger LOGGER = LogManager.getLogger("KubeJsRecipeEditor/TemplateRegistry");
+    private static final String ENGINE_VERSION = "1.0";
+    private static final String TEMPLATES_DIR = "kubejsrecipeeditor/templates";
+    private static final String FRAGMENTS_DIR = "kubejsrecipeeditor/templates/fragments";
+    private static final String META_FILE = "_meta.json";
 
     private final Map<ResourceLocation, FieldDescriptor.ObjectField> templates = new LinkedHashMap<>();
     private final List<Fragment> fragments = new ArrayList<>();
@@ -244,6 +255,214 @@ public class TemplateRegistry {
             };
         } catch (Exception e) {
             LOGGER.warn("Fragment add_fields '{}': failed to parse descriptor — {}", key, e.getMessage());
+            return null;
+        }
+    }
+
+    // ── Disk persistence ──────────────────────────────────────────────────────
+
+    /**
+     * Computes SHA-256 hash of the sorted modid@version list.
+     * Used to detect modlist changes and invalidate cached templates.
+     */
+    public static String computeModlistHash() {
+        try {
+            String modlist = net.neoforged.fml.ModList.get().getMods().stream()
+                .map(m -> m.getModId() + "@" + m.getVersion())
+                .sorted()
+                .collect(Collectors.joining(","));
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(modlist.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString().substring(0, 16); // first 16 chars is plenty for change detection
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    /**
+     * Attempts to load all templates from disk.
+     * Returns true if disk cache is valid (modlist hash matches and templates loaded),
+     * false if regeneration is needed.
+     *
+     * @param configDir  Minecraft game directory config/ path parent
+     * @param currentHash current modlist hash (from computeModlistHash())
+     */
+    public boolean loadFromDisk(Path configDir, String currentHash) {
+        Path templatesDir = configDir.resolve("config").resolve(TEMPLATES_DIR);
+        Path metaFile = templatesDir.resolve(META_FILE);
+
+        if (!Files.exists(metaFile)) {
+            LOGGER.debug("TemplateRegistry: no _meta.json found, regeneration needed");
+            return false;
+        }
+
+        try {
+            String metaContent = Files.readString(metaFile);
+            JsonObject meta = JsonParser.parseString(metaContent).getAsJsonObject();
+            String storedHash = meta.has("modlist_hash") ? meta.get("modlist_hash").getAsString() : "";
+
+            if (!storedHash.equals(currentHash)) {
+                LOGGER.debug("TemplateRegistry: modlist hash changed ({} → {}), regeneration needed",
+                    storedHash.substring(0, Math.min(8, storedHash.length())),
+                    currentHash.substring(0, Math.min(8, currentHash.length())));
+                return false;
+            }
+
+            // Load all template files
+            int loaded = 0;
+            try (var walk = Files.walk(templatesDir, 2)) {
+                for (Path p : (Iterable<Path>) walk::iterator) {
+                    if (!p.toString().endsWith(".json")) continue;
+                    if (p.getFileName().toString().startsWith("_")) continue;
+                    if (p.getParent().getFileName().toString().equals("fragments")) continue;
+
+                    try {
+                        String content = Files.readString(p);
+                        JsonObject templateJson = JsonParser.parseString(content).getAsJsonObject();
+                        String typeStr = templateJson.has("_meta")
+                            ? templateJson.getAsJsonObject("_meta").get("type").getAsString()
+                            : inferTypeFromPath(templatesDir, p);
+                        if (typeStr == null) continue;
+
+                        ResourceLocation typeUid = ResourceLocation.parse(typeStr);
+                        FieldDescriptor.ObjectField root = FieldDescriptorSerializer
+                            .deserializeFromTemplate(templateJson);
+                        if (root != null) {
+                            templates.put(typeUid, root);
+                            loaded++;
+                        }
+                    } catch (Exception e) {
+                        LOGGER.debug("Failed to load template {}: {}", p.getFileName(), e.getMessage());
+                    }
+                }
+            }
+
+            LOGGER.debug("TemplateRegistry: loaded {} templates from disk", loaded);
+            return loaded > 0;
+
+        } catch (Exception e) {
+            LOGGER.warn("TemplateRegistry: failed to read from disk: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Saves all registered templates to disk and writes _meta.json.
+     *
+     * @param configDir   Minecraft game directory (parent of config/)
+     * @param modlistHash current modlist hash
+     */
+    public void saveToDisk(Path configDir, String modlistHash) {
+        Path templatesDir = configDir.resolve("config").resolve(TEMPLATES_DIR);
+        String generatedAt = Instant.now().toString();
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+        int saved = 0;
+        for (var entry : templates.entrySet()) {
+            ResourceLocation typeUid = entry.getKey();
+            FieldDescriptor.ObjectField root = entry.getValue();
+
+            try {
+                // Path: templates/[namespace]/[path_with_slash_as_underscore].json
+                Path typeDir = templatesDir.resolve(typeUid.getNamespace());
+                Files.createDirectories(typeDir);
+                String fileName = typeUid.getPath().replace("/", "_") + ".json";
+                Path outFile = typeDir.resolve(fileName);
+
+                JsonObject templateJson = FieldDescriptorSerializer.serializeAsTemplate(
+                    root, typeUid.toString(), ENGINE_VERSION, generatedAt,
+                    root.presentInNOfTotal(), modlistHash);
+                Files.writeString(outFile, gson.toJson(templateJson), StandardCharsets.UTF_8);
+                saved++;
+            } catch (Exception e) {
+                LOGGER.debug("Failed to save template for {}: {}", typeUid, e.getMessage());
+            }
+        }
+
+        // Write _meta.json
+        try {
+            Files.createDirectories(templatesDir);
+            JsonObject meta = new JsonObject();
+            meta.addProperty("engine_version", ENGINE_VERSION);
+            meta.addProperty("generated_at", generatedAt);
+            meta.addProperty("modlist_hash", modlistHash);
+            meta.addProperty("type_count", saved);
+
+            JsonArray namespaces = new JsonArray();
+            templates.keySet().stream()
+                .map(ResourceLocation::getNamespace)
+                .distinct().sorted()
+                .forEach(namespaces::add);
+            meta.add("namespaces", namespaces);
+
+            Files.writeString(templatesDir.resolve(META_FILE),
+                gson.toJson(meta), StandardCharsets.UTF_8);
+            LOGGER.debug("TemplateRegistry: saved {} templates to disk", saved);
+        } catch (Exception e) {
+            LOGGER.warn("TemplateRegistry: failed to write _meta.json: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Scans the fragments directory and loads all valid Fragment files.
+     * Fragments are applied when templates are registered.
+     *
+     * @param configDir Minecraft game directory (parent of config/)
+     */
+    public void loadFragments(Path configDir) {
+        Path fragmentsDir = configDir.resolve("config").resolve(FRAGMENTS_DIR);
+        if (!Files.exists(fragmentsDir)) return;
+
+        int loaded = 0;
+        try (var walk = Files.walk(fragmentsDir, 1)) {
+            for (Path p : (Iterable<Path>) walk::iterator) {
+                if (!p.toString().endsWith(".json")) continue;
+                try {
+                    String content = Files.readString(p);
+                    JsonObject json = JsonParser.parseString(content).getAsJsonObject();
+                    Fragment f = Fragment.parse(json, p.getFileName().toString());
+                    addFragment(f);
+                    loaded++;
+                } catch (Exception e) {
+                    LOGGER.warn("Invalid fragment file {}: {}", p.getFileName(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("TemplateRegistry: error reading fragments directory: {}", e.getMessage());
+        }
+
+        if (loaded > 0) LOGGER.debug("TemplateRegistry: loaded {} fragment(s)", loaded);
+    }
+
+    /**
+     * Deletes all template files on disk to force full regeneration on next startup.
+     * Fragments are NOT deleted.
+     */
+    public void invalidateDiskCache(Path configDir) {
+        Path templatesDir = configDir.resolve("config").resolve(TEMPLATES_DIR);
+        if (!Files.exists(templatesDir)) return;
+        try (var walk = Files.walk(templatesDir, 2)) {
+            walk.filter(p -> p.toString().endsWith(".json"))
+                .filter(p -> !p.toString().contains("fragments"))
+                .forEach(p -> { try { Files.delete(p); } catch (Exception ignored) {} });
+            LOGGER.debug("TemplateRegistry: disk cache invalidated");
+        } catch (Exception e) {
+            LOGGER.warn("TemplateRegistry: failed to invalidate disk cache: {}", e.getMessage());
+        }
+    }
+
+    @Nullable
+    private static String inferTypeFromPath(Path templatesDir, Path templateFile) {
+        try {
+            Path rel = templatesDir.relativize(templateFile);
+            String namespace = rel.getName(0).toString();
+            String fileName = rel.getName(1).toString();
+            String path = fileName.endsWith(".json") ? fileName.substring(0, fileName.length() - 5) : fileName;
+            path = path.replace("_", "/");
+            return namespace + ":" + path;
+        } catch (Exception e) {
             return null;
         }
     }
