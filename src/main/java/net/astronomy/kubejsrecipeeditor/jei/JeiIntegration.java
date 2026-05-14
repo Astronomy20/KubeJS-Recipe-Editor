@@ -85,14 +85,29 @@ public class JeiIntegration implements IModPlugin {
         IFocusGroup emptyFocus = runtime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup();
 
         recipeManager.createRecipeCategoryLookup().get().forEach(categoryObj -> {
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            IRecipeCategory<?> rawCat = categoryObj;
             try {
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                IRecipeCategory<?> rawCat = categoryObj;
                 registerCategoryUnchecked(rawCat, recipeManager, emptyFocus);
             } catch (Exception ex) {
-                KubeJsRecipeEditor.LOGGER.debug("Skipping recipe template: {}", ex.getMessage());
+                KubeJsRecipeEditor.LOGGER.debug("Category {} failed, registering minimal template: {}",
+                    rawCat.getRecipeType().getUid(), ex.getMessage());
+                // Never drop a category — register with minimal template so it appears in KRE
+                RecipeTemplateRegistry.INSTANCE.register(buildMinimalTemplate(rawCat), rawCat);
             }
         });
+    }
+
+    /** Minimal template fallback: shows the category in KRE with JEI background/icon but no export. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static RecipeTemplate buildMinimalTemplate(IRecipeCategory<?> category) {
+        return new RecipeTemplate(
+            (RecipeType) category.getRecipeType(),
+            category.getTitle().getString(),
+            category.getBackground(),
+            category.getIcon(),
+            List.of(), null, 0, 0,
+            List.of(), null, null, null);
     }
 
     /**
@@ -179,19 +194,18 @@ public class JeiIntegration implements IModPlugin {
         Object exampleRecipe = mgr.createRecipeLookup(type).get().findFirst().orElse(null);
         if (exampleRecipe == null && !isComposting && !isFuel && !isBrewing) return;
 
-        // If the JEI category uses custom wrappers (not RecipeHolder), try the MC recipe manager
-        // as a fallback (e.g. Mystical Agriculture Awakening, Enchanter, etc.).
-        // Pure JEI-display categories (grindstone, anvil) have no MC recipes and are skipped.
+        // If the JEI category uses custom wrappers (not RecipeHolder), try MC recipe manager fallback.
+        // Never skip a category just because it uses custom wrappers — it may still be exportable
+        // via KubeJS event.custom({...}) using the recipe JSON from the MC recipe manager.
         if (exampleRecipe != null && !(exampleRecipe instanceof RecipeHolder) && !isComposting && !isFuel && !isBrewing) {
             List<Object> mcRecipes = findMcRecipesForType(type.getUid());
-            if (mcRecipes.isEmpty()) {
-                KubeJsRecipeEditor.LOGGER.debug(
-                        "KRE: skipping JEI-only category (no MC recipes): {}", uid);
-                return;
+            if (!mcRecipes.isEmpty()) {
+                // MC RecipeHolder found — use it as canonical example for codec checks below
+                exampleRecipe = mcRecipes.get(0);
+                KubeJsRecipeEditor.LOGGER.debug("KRE: JEI wrapper → MC fallback for: {}", uid);
             }
-            // Use MC RecipeHolder as canonical example so instanceof checks below pass
-            exampleRecipe = mcRecipes.get(0);
-            KubeJsRecipeEditor.LOGGER.debug("KRE: JEI wrapper → MC fallback for: {}", uid);
+            // If MC also has nothing, continue anyway — category will get minimal template if
+            // slot capture also fails (caught in populateRecipeTemplates try-catch)
         }
 
         // ── Cache hit ────────────────────────────────────────────────────────
@@ -200,11 +214,7 @@ public class JeiIntegration implements IModPlugin {
             List<SlotCapturingLayoutBuilder.CapturedSlot> slots = cached.slots().stream()
                     .map(s -> new SlotCapturingLayoutBuilder.CapturedSlot(s.parsedRole(), s.x(), s.y()))
                     .toList();
-            // Skip only if empty slots AND no codec template (truly display-only, no export possible).
-            // RecipeHolder categories (e.g. Industrial Foregoing) may have 0 JEI slots but CAN be
-            // exported via codec — they have a templateJson in the cache.
-            // Composting/fuel/brewing always proceed regardless.
-            if (slots.isEmpty() && !isComposting && !isFuel && !isBrewing && cached.templateJson() == null) return;
+            // Always register — even categories with empty slots and no template appear in KRE.
 
             JsonObject exportTemplate = null;
             if (cached.templateJson() != null) {
@@ -275,19 +285,12 @@ public class JeiIntegration implements IModPlugin {
         }
         if (minInput == Integer.MAX_VALUE) minInput = 0; // no samples iterated
 
-        // Skip display-only categories with 0 captured slots, UNLESS they are:
-        // - a special type (composting, fuel, brewing) with dedicated UI
-        // - a RecipeHolder category (can export via codec even with RENDER_ONLY JEI slots, e.g. IF)
-        if (maxInput == 0 && !isComposting && !isFuel && !isBrewing
-                && !(exampleRecipe instanceof RecipeHolder)) return;
-
+        // No filtering based on slot count or recipe type — every category present at runtime
+        // must appear in KRE. Categories with 0 slots or no codec path get a minimal template
+        // (handled by the try-catch in populateRecipeTemplates).
         List<SlotCapturingLayoutBuilder.CapturedSlot> captured = maxSlotRecipe != null
                 ? SlotCapturingLayoutBuilder.capture(category, maxSlotRecipe, emptyFocus)
                 : List.of();
-        // For RecipeHolder categories (e.g. Industrial Foregoing) that declare all slots as
-        // RENDER_ONLY, captured is empty but the category is still exportable via codec.
-        // Only hard-skip truly display-only categories (non-RecipeHolder, non-composting/fuel/brewing).
-        if (captured.isEmpty() && !isComposting && !isFuel && !isBrewing && !(exampleRecipe instanceof RecipeHolder)) return;
 
         RegistryAccess regs = Minecraft.getInstance().level.registryAccess();
 
