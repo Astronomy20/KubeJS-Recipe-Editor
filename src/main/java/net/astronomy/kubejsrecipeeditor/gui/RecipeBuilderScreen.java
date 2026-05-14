@@ -1,11 +1,18 @@
 package net.astronomy.kubejsrecipeeditor.gui;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
+import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.neoforged.neoforge.fluids.FluidStack;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -154,8 +161,14 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         this.maxInputSlotCount    = capturedLayout != null ? capturedLayout.maxInputSlots() : 0;
 
         // Populate extra param values from template defaults (only on first construction)
+        // Prefer guiDescriptor params (new system); fall back to legacy ExtraParam list.
         if (capturedLayout != null) {
-            capturedLayout.extraParams().forEach(p -> extraParamValues.put(p.key(), p.defaultValueStr()));
+            GuiDescriptor guiDesc = capturedLayout.guiDescriptor();
+            if (guiDesc != null && !guiDesc.extraParams().isEmpty()) {
+                guiDesc.extraParams().forEach(p -> extraParamValues.put(p.jsonKey(), p.defaultValue()));
+            } else {
+                capturedLayout.extraParams().forEach(p -> extraParamValues.put(p.key(), p.defaultValueStr()));
+            }
         }
 
         // Init sequence steps from template (only on first construction)
@@ -163,7 +176,8 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
         int bgW = recipePanelBgWidth();
         int bgH = recipePanelBgHeight();
-        int extraParamCount = capturedLayout != null ? capturedLayout.extraParams().size() : 0;
+        // Count visible extra params using the same priority logic as getActiveExtraParams()
+        int extraParamCount = computeActiveExtraParamCount();
         int extraRows = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0) + extraParamCount;
         int seqH = isSequencedAssembly()
                 ? SEQ_HEADER_H + Math.max(1, sequenceSteps.size()) * STEP_ROW_H + SEQ_ADD_BTN_H + 6
@@ -326,31 +340,33 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
                     .pos(cx + 14, fy).size(14, 14).build());
         }
 
-        // Extra codec-param widgets (INT/FLOAT: -/+; BOOLEAN: toggle; STRING: read-only)
-        if (capturedLayout != null && !capturedLayout.extraParams().isEmpty()) {
+        // Extra codec-param widgets (INTEGER/FLOAT: -/+; BOOLEAN: toggle; ENUM: cycle; STRING: read-only)
+        List<ParamDescriptor> activeParams = getActiveExtraParams();
+        if (!activeParams.isEmpty()) {
             int baseRow = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0);
             int cx = leftPos + imageWidth / 2;
-            for (int i = 0; i < capturedLayout.extraParams().size(); i++) {
-                ExtraParam ep = capturedLayout.extraParams().get(i);
+            for (int i = 0; i < activeParams.size(); i++) {
+                ParamDescriptor pd = activeParams.get(i);
+                if (pd.type() == ParamDescriptor.ParamType.CONSTANT) continue;
                 int fy = topPos + TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
                         + (baseRow + i) * EXTRA_FIELD_H + 4;
-                switch (ep.type()) {
-                    case INT, FLOAT -> {
+                switch (pd.type()) {
+                    case INTEGER, FLOAT -> {
                         addRenderableWidget(Button.builder(Component.literal("-"),
-                                        btn -> adjustExtraParam(ep, -1, Screen.hasShiftDown()))
+                                        btn -> adjustExtraParamPd(pd, -1, Screen.hasShiftDown()))
                                 .pos(cx - 28, fy).size(14, 14).build());
                         addRenderableWidget(Button.builder(Component.literal("+"),
-                                        btn -> adjustExtraParam(ep, +1, Screen.hasShiftDown()))
+                                        btn -> adjustExtraParamPd(pd, +1, Screen.hasShiftDown()))
                                 .pos(cx + 14, fy).size(14, 14).build());
                     }
                     case BOOLEAN -> addRenderableWidget(
-                            Button.builder(Component.literal(extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr())),
-                                    btn -> toggleExtraParam(ep, btn))
+                            Button.builder(Component.literal(extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue())),
+                                    btn -> toggleExtraParamPd(pd, btn))
                                     .pos(cx - 14, fy).size(28, 14).build());
                     case ENUM -> {
-                        String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+                        String cur = extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue());
                         addRenderableWidget(
-                                Button.builder(Component.literal(cur), btn -> cycleEnumParam(ep, btn))
+                                Button.builder(Component.literal(cur), btn -> cycleEnumParamPd(pd, btn))
                                         .pos(cx - 55, fy).size(110, 14).build());
                     }
                     case STRING -> {} // display-only
@@ -636,19 +652,21 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         }
 
         // Extra codec-param rows
-        if (capturedLayout != null && !capturedLayout.extraParams().isEmpty()) {
+        List<ParamDescriptor> activeParams = getActiveExtraParams();
+        if (!activeParams.isEmpty()) {
             int baseRow = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0);
-            for (int i = 0; i < capturedLayout.extraParams().size(); i++) {
-                ExtraParam ep = capturedLayout.extraParams().get(i);
+            for (int i = 0; i < activeParams.size(); i++) {
+                ParamDescriptor pd = activeParams.get(i);
+                if (pd.type() == ParamDescriptor.ParamType.CONSTANT) continue;
                 int fy = TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
                         + (baseRow + i) * EXTRA_FIELD_H + 7;
-                String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
-                // result_chance is a per-item probability — show a clearer label
-                String epLabel = ep.key().equals("result_chance") ? "item chance:" : ep.key() + ":";
-                g.drawString(font, epLabel, PADDING + 2, fy, 0xFFAAAAAA, false);
-                if (ep.type() == ExtraParam.Type.INT || ep.type() == ExtraParam.Type.FLOAT) {
+                String val = extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue());
+                String pdLabel = pd.displayLabel() + ":";
+                g.drawString(font, pdLabel, PADDING + 2, fy, 0xFFAAAAAA, false);
+                if (pd.type() == ParamDescriptor.ParamType.INTEGER
+                        || pd.type() == ParamDescriptor.ParamType.FLOAT) {
                     g.drawCenteredString(font, val, imageWidth / 2, fy, 0xFFFFFFFF);
-                } else if (ep.type() == ExtraParam.Type.STRING) {
+                } else if (pd.type() == ParamDescriptor.ParamType.STRING) {
                     g.drawString(font, val, imageWidth / 2 - 14, fy, 0xFFFFFF55, false);
                 }
                 // BOOLEAN and ENUM values are shown on the toggle/cycle button itself
@@ -737,7 +755,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     /** Y position (absolute screen) of the sequence section top. */
     private int computeSeqSectionY() {
         int extraRows = (isCompostingCategory || isFuelCategory ? 1 : 0)
-                + (capturedLayout != null ? capturedLayout.extraParams().size() : 0);
+                + computeActiveExtraParamCount();
         return topPos + TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
                 + (extraRows > 0 ? EXTRA_FIELD_H * extraRows + 4 : 10);
     }
@@ -745,7 +763,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     /** Y position relative to window top-left (for use inside renderLabels). */
     private int computeSeqSectionRelY() {
         int extraRows = (isCompostingCategory || isFuelCategory ? 1 : 0)
-                + (capturedLayout != null ? capturedLayout.extraParams().size() : 0);
+                + computeActiveExtraParamCount();
         return TOP_BAR + PADDING + recipePanelBgHeight() + PADDING
                 + (extraRows > 0 ? EXTRA_FIELD_H * extraRows + 4 : 10);
     }
@@ -753,7 +771,7 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     /** Rebuilds the screen after steps are added/removed (updates height and re-init). */
     private void rebuildAfterStepChange() {
         int bgH = recipePanelBgHeight();
-        int extraParamCount = capturedLayout != null ? capturedLayout.extraParams().size() : 0;
+        int extraParamCount = computeActiveExtraParamCount();
         int extraRows = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0) + extraParamCount;
         int seqH = SEQ_HEADER_H + Math.max(1, sequenceSteps.size()) * STEP_ROW_H + SEQ_ADD_BTN_H + 6;
         this.imageHeight = TOP_BAR + PADDING + bgH + PADDING
@@ -833,6 +851,38 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     private static int itemX(SlotData slot) { return slot.x + (slot.w - 16) / 2; }
     private static int itemY(SlotData slot) { return slot.y + (slot.h - 16) / 2; }
 
+    /** Renders a fluid texture into a 16×16 area using NeoForge IClientFluidTypeExtensions. */
+    private void renderFluidInSlot(GuiGraphics g, ResourceLocation fluidId, long amount,
+            int x, int y) {
+        try {
+            Fluid fluid = net.minecraft.core.registries.BuiltInRegistries.FLUID.get(fluidId);
+            if (fluid == null || fluid == Fluids.EMPTY) {
+                g.fill(x, y, x + 16, y + 16, 0x4455AAFF);
+                return;
+            }
+            FluidStack fs = new FluidStack(fluid, (int) Math.min(amount, Integer.MAX_VALUE));
+            IClientFluidTypeExtensions ext = IClientFluidTypeExtensions.of(fluid.getFluidType());
+            ResourceLocation texture = ext.getStillTexture();
+            int tint = ext.getTintColor();
+
+            TextureAtlasSprite sprite = Minecraft.getInstance()
+                .getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(texture);
+
+            int r = (tint >> 16) & 0xFF;
+            int gr = (tint >> 8) & 0xFF;
+            int b = tint & 0xFF;
+            int a = (tint >> 24) & 0xFF;
+            if (a == 0) a = 255;
+
+            RenderSystem.setShaderColor(r / 255f, gr / 255f, b / 255f, a / 255f);
+            g.blit(x, y, 0, 16, 16, sprite);
+            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        } catch (Exception ignored) {
+            // Fallback to solid color if texture lookup fails
+            g.fill(x, y, x + 16, y + 16, 0x8055AAFF);
+        }
+    }
+
     private void renderSlot(GuiGraphics g, SlotData slot, int mouseX, int mouseY) {
         int ix = itemX(slot);
         int iy = itemY(slot);
@@ -843,23 +893,20 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         if (hover) g.fill(ix - 1, iy - 1, ix + 17, iy + 17, 0x55FFFFFF);
 
         if (slot.isFluid && slot.isEmpty()) {
-            // Empty fluid slot: show faint "~" to indicate it awaits a fluid (drag a bucket)
-            g.drawString(font, "~", ix + 1, iy + 1, 0x8855BBFF, false);
+            // Empty fluid slot: faint blue tint to signal it accepts fluids
+            g.fill(ix, iy, ix + 16, iy + 16, 0x2255AAFF);
+            g.drawString(font, "~", ix + 4, iy + 4, 0x8855BBFF, false);
             return;
         }
 
         if (slot.isFluid && !slot.isEmpty()) {
             if (slot.useFluidTag) {
-                // Tag mode: show "#~" overlay (no bucket item, just a tag indicator)
-                g.drawString(font, "~", ix + 1, iy + 1, 0xFF55BBFF, false);
-                g.drawString(font, "#", ix + 8, iy + 8, 0xFFFFFF55, false);
-            } else {
-                // Fluid ID mode: render bucket item (stored in ingredient) with blue "~" overlay
-                if (!slot.ingredient.isEmpty()) {
-                    g.renderItem(slot.ingredient, ix, iy);
-                    g.renderItemDecorations(font, slot.ingredient, ix, iy);
-                }
-                g.drawString(font, "~", ix + 1, iy + 1, 0xFF55BBFF, false);
+                // Tag mode: blue fill + # indicator (no specific texture available)
+                g.fill(ix, iy, ix + 16, iy + 16, 0x4455AAFF);
+                g.drawString(font, "#", ix + 3, iy + 4, 0xFFFFFF55, false);
+            } else if (slot.fluidId != null) {
+                // Fluid ID mode: render actual fluid texture using NeoForge client extensions
+                renderFluidInSlot(g, slot.fluidId, slot.fluidAmount, ix, iy);
             }
             if (hover) {
                 g.fill(ix + 8, iy - 1, ix + 17, iy + 8, 0x88000000);
@@ -1679,22 +1726,21 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         // ── Apply user-edited extra param values ────────────────────────────
         // NOTE: no "continue if key absent" — we WANT to add optional fields (e.g. heat_requirement)
         // even when the template example recipe didn't have them.
-        if (capturedLayout != null) {
-            for (ExtraParam ep : capturedLayout.extraParams()) {
-                String val = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
-                switch (ep.type()) {
-                    case INT     -> json.addProperty(ep.key(), Integer.parseInt(val));
-                    case FLOAT   -> {
-                        // "result_chance" is a virtual param applied to results[], not a top-level field
-                        if (!ep.key().equals("result_chance"))
-                            json.addProperty(ep.key(), Double.parseDouble(val));
-                    }
-                    case BOOLEAN -> json.addProperty(ep.key(), Boolean.parseBoolean(val));
-                    case STRING  -> json.addProperty(ep.key(), val);
-                    case ENUM    -> {
-                        if ("(none)".equals(val)) json.remove(ep.key());
-                        else json.addProperty(ep.key(), val);
-                    }
+        for (ParamDescriptor pd : getActiveExtraParams()) {
+            if (pd.type() == ParamDescriptor.ParamType.CONSTANT) continue;
+            String val = extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue());
+            switch (pd.type()) {
+                case INTEGER -> json.addProperty(pd.jsonKey(), Integer.parseInt(val));
+                case FLOAT   -> {
+                    // "result_chance" is a virtual param applied to results[], not a top-level field
+                    if (!pd.jsonKey().equals("result_chance"))
+                        json.addProperty(pd.jsonKey(), Double.parseDouble(val));
+                }
+                case BOOLEAN -> json.addProperty(pd.jsonKey(), Boolean.parseBoolean(val));
+                case STRING  -> json.addProperty(pd.jsonKey(), val);
+                case ENUM    -> {
+                    if ("(none)".equals(val)) json.remove(pd.jsonKey());
+                    else json.addProperty(pd.jsonKey(), val);
                 }
             }
         }
@@ -2078,38 +2124,106 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
 
     // ─── Extra param helpers ───────────────────────────────────────────────────
 
-    private void adjustExtraParam(ExtraParam ep, int direction, boolean shift) {
+    /**
+     * Returns the list of {@link ParamDescriptor} objects that drive Zona 2 (extra param rows).
+     *
+     * <p>Priority:</p>
+     * <ol>
+     *   <li>If {@code capturedLayout.guiDescriptor()} is non-null and non-empty: use its
+     *       {@code extraParams()} list, filtering out {@code CONSTANT} entries (those are
+     *       always hidden in Zona 2).</li>
+     *   <li>Otherwise: convert the legacy {@link ExtraParam} list from
+     *       {@code capturedLayout.extraParams()} to {@code ParamDescriptor}.</li>
+     *   <li>If {@code capturedLayout} is null: return {@code List.of()}.</li>
+     * </ol>
+     */
+    private List<ParamDescriptor> getActiveExtraParams() {
+        if (capturedLayout == null) return List.of();
+
+        GuiDescriptor guiDesc = capturedLayout.guiDescriptor();
+        if (guiDesc != null && !guiDesc.extraParams().isEmpty()) {
+            // New system: filter out CONSTANT params (structural/read-only, no UI widget needed)
+            return guiDesc.extraParams().stream()
+                    .filter(pd -> pd.type() != ParamDescriptor.ParamType.CONSTANT)
+                    .collect(Collectors.toList());
+        }
+
+        // Legacy fallback: convert ExtraParam → ParamDescriptor
+        return capturedLayout.extraParams().stream()
+                .map(ep -> {
+                    ParamDescriptor.ParamType type = switch (ep.type()) {
+                        case INT     -> ParamDescriptor.ParamType.INTEGER;
+                        case FLOAT   -> ParamDescriptor.ParamType.FLOAT;
+                        case BOOLEAN -> ParamDescriptor.ParamType.BOOLEAN;
+                        case ENUM    -> ParamDescriptor.ParamType.ENUM;
+                        case STRING  -> ParamDescriptor.ParamType.STRING;
+                    };
+                    double min = ep.minBound() != Integer.MIN_VALUE ? ep.minBound() : 0;
+                    String label = ep.key().equals("result_chance") ? "item chance"
+                            : ParamDescriptor.humanizeKey(ep.key());
+                    return new ParamDescriptor(
+                            ep.key(), label, type,
+                            ep.defaultValueStr(), ep.enumValues(),
+                            min, Double.MAX_VALUE,
+                            true, type == ParamDescriptor.ParamType.STRING);
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns the count of visible extra param rows for window-height calculation.
+     * Called from the constructor before {@code getActiveExtraParams()} is available as an instance
+     * method, so it replicates the same priority logic inline.
+     */
+    private int computeActiveExtraParamCount() {
+        if (capturedLayout == null) return 0;
+        GuiDescriptor guiDesc = capturedLayout.guiDescriptor();
+        if (guiDesc != null && !guiDesc.extraParams().isEmpty()) {
+            return (int) guiDesc.extraParams().stream()
+                    .filter(pd -> pd.type() != ParamDescriptor.ParamType.CONSTANT)
+                    .count();
+        }
+        return capturedLayout.extraParams().size();
+    }
+
+    /** Adjusts an integer or float extra param by {@code direction} steps. */
+    private void adjustExtraParamPd(ParamDescriptor pd, int direction, boolean shift) {
         try {
-            String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
-            if (ep.type() == ExtraParam.Type.INT) {
+            String cur = extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue());
+            if (pd.type() == ParamDescriptor.ParamType.INTEGER) {
                 int step = shift ? 10 : 1;
                 int raw = Integer.parseInt(cur) + direction * step;
-                if (ep.minBound() != Integer.MIN_VALUE) raw = Math.max(ep.minBound(), raw);
-                extraParamValues.put(ep.key(), String.valueOf(raw));
-            } else if (ep.type() == ExtraParam.Type.FLOAT) {
+                if (pd.minValue() != 0 || pd.maxValue() != Double.MAX_VALUE) {
+                    raw = (int) Math.max(pd.minValue(), raw);
+                }
+                extraParamValues.put(pd.jsonKey(), String.valueOf(raw));
+            } else if (pd.type() == ParamDescriptor.ParamType.FLOAT) {
                 double step = shift ? 1.0 : 0.1;
                 double newVal = Double.parseDouble(cur) + direction * step;
                 // result_chance is a per-item probability clamped to [0.0, 1.0]
-                if (ep.key().equals("result_chance")) newVal = Math.max(0.0, Math.min(1.0, newVal));
-                extraParamValues.put(ep.key(), String.format(Locale.ROOT, "%.2f", newVal));
+                if (pd.jsonKey().equals("result_chance")) newVal = Math.max(0.0, Math.min(1.0, newVal));
+                extraParamValues.put(pd.jsonKey(), String.format(Locale.ROOT, "%.2f", newVal));
             }
         } catch (NumberFormatException ignored) {}
     }
 
-    private void toggleExtraParam(ExtraParam ep, Button btn) {
-        String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+    /** Toggles a boolean extra param and updates the button label. */
+    private void toggleExtraParamPd(ParamDescriptor pd, Button btn) {
+        String cur = extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue());
         String next = "true".equalsIgnoreCase(cur) ? "false" : "true";
-        extraParamValues.put(ep.key(), next);
+        extraParamValues.put(pd.jsonKey(), next);
         btn.setMessage(Component.literal(next));
     }
 
-    private void cycleEnumParam(ExtraParam ep, Button btn) {
-        List<String> vals = ep.enumValues();
+    /** Cycles through enum values for an enum extra param, updating the button label. */
+    private void cycleEnumParamPd(ParamDescriptor pd, Button btn) {
+        List<String> vals = pd.enumValues();
         if (vals.isEmpty()) return;
-        String cur = extraParamValues.getOrDefault(ep.key(), ep.defaultValueStr());
+        String cur = extraParamValues.getOrDefault(pd.jsonKey(), pd.defaultValue());
         int idx = vals.indexOf(cur);
         String next = vals.get((idx + 1) % vals.size());
-        extraParamValues.put(ep.key(), next);
+        extraParamValues.put(pd.jsonKey(), next);
         btn.setMessage(Component.literal(next));
     }
+
 }
