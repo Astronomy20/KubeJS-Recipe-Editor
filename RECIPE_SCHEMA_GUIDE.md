@@ -1,13 +1,9 @@
-# Bundled Schema Guide
+# Fragment Schema Guide
 
-This document explains how to write a **bundled schema** for a recipe type so that
-KubeJS Recipe Editor can build a proper GUI for it, validate ingredient types, and
-reconstruct the correct JSON on export.
-
-Bundled schemas live inside the mod JAR and are applied automatically.
-They override the runtime inference engine for known mod types, guaranteeing
-complete and correct field coverage even when optional fields are absent from
-most recipe JSON files.
+This document explains how to write a **fragment** to customize and extend recipe templates
+for KubeJS Recipe Editor. Fragments allow you to add missing fields, correct field types,
+hide internal fields, and register custom resource types — all without modifying source code
+or restarting the game.
 
 ---
 
@@ -16,66 +12,105 @@ most recipe JSON files.
 | Priority | Source | Location |
 |---|---|---|
 | 1 (lowest) | Runtime inference | Generated at game load from actual recipe JSON corpus |
-| 2 | **Bundled schema** | `resources/kubejsrecipeeditor/bundled_schemas/<namespace>/<type_path>.json` |
-| 3 (highest) | User fragment | `config/kubejsrecipeeditor/templates/fragments/` |
+| 2 | Bundled schema | Applied by the mod for known recipe types |
+| 3 (highest) | **User fragment** | `config/kubejsrecipeeditor/templates/fragments/` |
 
-Bundled schemas are applied when a mod is present and override the inferred template.
-User fragments override everything.
+User fragments override both inferred and bundled templates, giving you complete control
+over how each recipe type appears in the GUI.
 
 ---
 
 ## 2. File location and naming
 
 ```
-src/main/resources/kubejsrecipeeditor/bundled_schemas/
-├── create/
-│   ├── mixing.json        ← recipe type create:mixing
-│   └── pressing.json
-├── mekanism/
-│   ├── crushing.json      ← recipe type mekanism:crushing
-│   └── reaction.json
-└── appeng/
-    └── inscriber.json     ← recipe type appeng:inscriber
+<minecraft_instance>/
+└── config/
+    └── kubejsrecipeeditor/
+        └── templates/
+            └── fragments/
+                ├── _global.json                  ← applies to every recipe type
+                ├── create__.json                 ← applies to all  create:*  types
+                └── create__mixing.json           ← applies only to create:mixing
 ```
 
-Rule: replace `:` with `/` between namespace and path.
-If the path contains `/` (e.g. `mekanism:reaction/basic`), use nested directories:
-`bundled_schemas/mekanism/reaction/basic.json`.
+Create the `fragments/` folder if it does not exist — the mod will not create it automatically.
+
+**Naming convention** (`__` = double underscore):
+
+| File name | Applies to |
+|---|---|
+| `_global.json` | All recipe types |
+| `<namespace>__.json` | All types in that namespace (`<namespace>:*`) |
+| `<namespace>__<path>.json` | One specific type (`<namespace>:<path>`) |
+| `<namespace>__<path_a>__<path_b>.json` | Type with slash in path (`<namespace>:<path_a>/<path_b>`) |
 
 ---
 
-## 3. Top-level structure
+## 3. Fragment structure
 
 ```json
 {
   "_meta": {
-    "type": "create:mixing",
-    "source": "bundled",
-    "mod_version_target": "mc1.21.1/dev",
-    "engine_version": "1.0",
-    "_note": "Optional free-text note visible in debug output."
+    "description": "Human-readable description of what this fragment does",
+    "author":      "your_name (optional)",
+    "priority":    10,
+    "targets":     ["create:mixing"]
   },
-  "fields": {
-    "type":  { "descriptor": "ConstantField", "constantValue": "create:mixing" },
-    "...":   { ... }
+
+  "add_fields": {
+    "new_field_key": {
+      "descriptor":   "ScalarField",
+      "scalarType":   "ENUM_STRING",
+      "optional":     true,
+      "defaultValue": "value_a",
+      "enumValues":   ["value_a", "value_b", "value_c"],
+      "display_label": "My Field"
+    }
+  },
+
+  "override_fields": {
+    "existing_field_key": {
+      "optional":     true,
+      "defaultValue": "new_default",
+      "min":          0,
+      "max":          100,
+      "acceptedTypes": ["ITEM", "FLUID"],
+      "enumValues":   ["extra_value"],
+      "display_label": "Label shown in GUI"
+    }
+  },
+
+  "remove_fields": ["internal_field_a", "internal_field_b"],
+
+  "add_registry_hints": {
+    "my_custom_key": {
+      "contentType":   "CUSTOM",
+      "registry_key":  "mymod:my_registry",
+      "display_label": "My Resource"
+    }
   }
 }
 ```
 
-| `_meta` key | Required | Description |
-|---|---|---|
-| `type` | yes | The full recipe type ID, e.g. `create:mixing` |
-| `source` | yes | Must be exactly `"bundled"` |
-| `mod_version_target` | yes | Branch, tag, or version used when the schema was written |
-| `engine_version` | yes | Must be `"1.0"` |
-| `_note` | no | Free-text note; shown in debug logs |
+| Section | What it does |
+|---|---|
+| `add_fields` | Adds a new field that does not exist in the current template. Error if the key already exists — use `override_fields` instead. |
+| `override_fields` | Partially patches an existing field. Only the listed properties are changed; others are kept. Cannot change the `descriptor` type. |
+| `remove_fields` | Hides fields from the GUI. They are still written to the exported JSON using the template's default value. |
+| `add_registry_hints` | Registers a new JSON key → Minecraft registry mapping so the mod can resolve the correct slot colour for custom resource types. |
 
-The `fields` object maps each JSON field name to a **FieldDescriptor**.
-The field named `"type"` should always be present as a `ConstantField`.
+### 3.1 `_meta` fields
+
+| Key | Required | Description |
+|---|---|---|
+| `description` | no | Human-readable text explaining what the fragment does. Shown in debug logs. |
+| `author` | no | Your name or identifier. |
+| `priority` | no | Default: `0`. Fragments with higher priority are applied last and win over conflicts. Set to any positive integer to ensure your fragment takes effect. |
+| `targets` | yes | Array of recipe type IDs or patterns this fragment applies to. Supports `"namespace:type"`, `"namespace:*"`, or `"*"`. |
 
 ---
 
-## 4. FieldDescriptor types
+## 4. FieldDescriptor reference
 
 ### 4.1 `ConstantField`
 
@@ -86,8 +121,8 @@ The GUI hides it; the JSON output always copies it from the template.
 { "descriptor": "ConstantField", "constantValue": "create:mixing" }
 ```
 
-**Always use this for the `"type"` field.**
-Also use it for internal flags or version markers that should be written as-is.
+**Always use this for the `"type"` field in bundled schemas.**
+Fragments typically do not add or override constant fields.
 
 ---
 
@@ -233,487 +268,9 @@ Renders as slot + slider `0.0 → 1.0`.
 
 ---
 
-## 5. Step-by-step: from recipe JSON to schema
+## 5. Fragment operations
 
-**Step 1 — Find a real recipe JSON** for the type you want to document.
-Look in the mod's source under `src/main/resources/data/<namespace>/recipes/`
-or extract it from the JAR.
-
-**Step 2 — Find the serializer** (usually a `MapCodec` or `RecordCodecBuilder`
-in a `*Serializer.java` file). This reveals every field, including optional ones
-that don't appear in the default recipes.
-
-**Step 3 — Map each JSON key** to a FieldDescriptor using the rules in §4:
-- Constant string = `ConstantField`
-- Int/float/bool = `ScalarField`
-- `{"item": ...}` / `{"tag": ...}` = `IngredientField(ITEM, ITEM_TAG)`
-- `{"fluid": ..., "amount": N}` = `IngredientField(FLUID)` + `amount` subfield
-- `{"chemical": ..., "amount": N}` (Mekanism 1.21.x) = `IngredientField(CHEMICAL_GAS)`
-- Array of objects = `ArrayField`
-- Nested object = `ObjectField`
-- Item + float probability = `ChanceField`
-
-**Step 4 — Note optionality** from the codec (`optionalFieldOf` in Mojang codecs,
-or nullable/`Optional<>` in the serializer). Set `"optional": true` and supply a
-`"defaultValue"` where one exists.
-
-**Step 5 — Write the file** to
-`bundled_schemas/<namespace>/<type_path>.json` and rebuild.
-
----
-
-## 6. Worked examples
-
-### Example A — Create Crushing (simple item → items with chance)
-
-Recipe JSON:
-```json
-{
-  "type": "create:crushing",
-  "ingredients": [{ "item": "minecraft:iron_ore" }],
-  "results": [
-    { "item": "create:crushed_raw_iron", "count": 1 },
-    { "item": "create:crushed_raw_iron", "chance": 0.75 }
-  ],
-  "processingTime": 150
-}
-```
-
-Schema (`bundled_schemas/create/crushing.json`):
-```json
-{
-  "_meta": {
-    "type": "create:crushing",
-    "source": "bundled",
-    "mod_version_target": "mc1.21.1/dev",
-    "engine_version": "1.0"
-  },
-  "fields": {
-    "type": { "descriptor": "ConstantField", "constantValue": "create:crushing" },
-    "ingredients": {
-      "descriptor": "ArrayField",
-      "optional": false,
-      "elementDescriptor": {
-        "descriptor": "IngredientField",
-        "optional": false,
-        "acceptedTypes": ["ITEM", "ITEM_TAG"],
-        "subfields": {}
-      },
-      "minItems": 1,
-      "maxItems": 1
-    },
-    "results": {
-      "descriptor": "ArrayField",
-      "optional": false,
-      "elementDescriptor": {
-        "descriptor": "IngredientField",
-        "optional": false,
-        "acceptedTypes": ["ITEM"],
-        "subfields": {
-          "count":  { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 },
-          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT",   "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 }
-        }
-      },
-      "minItems": 1,
-      "maxItems": 6
-    },
-    "processing_time": {
-      "descriptor": "ScalarField",
-      "scalarType": "INTEGER",
-      "optional": true,
-      "defaultValue": "150",
-      "min": 0,
-      "max": 72000
-    }
-  }
-}
-```
-
----
-
-### Example B — Create Mixing (items + fluids, enum heat requirement)
-
-Recipe JSON:
-```json
-{
-  "type": "create:mixing",
-  "ingredients": [
-    { "item": "minecraft:iron_ingot" },
-    { "fluid": "minecraft:water", "amount": 250 }
-  ],
-  "results": [{ "item": "create:andesite_alloy" }],
-  "heatRequirement": "heated",
-  "processingTime": 100
-}
-```
-
-The serializer (`ProcessingRecipeParams.CODEC`) also accepts
-`"superheated"` and the default `"none"` for `heatRequirement`,
-and fluid outputs in `results` — none of which appear in this example.
-The schema captures all possibilities:
-
-```json
-{
-  "_meta": { "type": "create:mixing", "source": "bundled",
-             "mod_version_target": "mc1.21.1/dev", "engine_version": "1.0" },
-  "fields": {
-    "type": { "descriptor": "ConstantField", "constantValue": "create:mixing" },
-    "ingredients": {
-      "descriptor": "ArrayField", "optional": false,
-      "elementDescriptor": {
-        "descriptor": "IngredientField", "optional": false,
-        "acceptedTypes": ["ITEM", "ITEM_TAG", "FLUID"],
-        "subfields": {
-          "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                      "optional": true, "defaultValue": "1000", "min": 1, "max": 2147483647 }
-        }
-      },
-      "minItems": 1, "maxItems": 9
-    },
-    "results": {
-      "descriptor": "ArrayField", "optional": false,
-      "elementDescriptor": {
-        "descriptor": "IngredientField", "optional": false,
-        "acceptedTypes": ["ITEM", "FLUID"],
-        "subfields": {
-          "count":  { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 },
-          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT",   "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 },
-          "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1000", "min": 1, "max": 2147483647 }
-        }
-      },
-      "minItems": 1, "maxItems": 9
-    },
-    "processing_time": {
-      "descriptor": "ScalarField", "scalarType": "INTEGER",
-      "optional": true, "defaultValue": "100", "min": 0, "max": 72000
-    },
-    "heat_requirement": {
-      "descriptor": "ScalarField", "scalarType": "ENUM_STRING",
-      "optional": true, "defaultValue": "none",
-      "enumValues": ["none", "heated", "superheated"]
-    }
-  }
-}
-```
-
----
-
-### Example C — Mekanism Crushing (ItemStackIngredient → ItemStack)
-
-Recipe JSON:
-```json
-{
-  "type": "mekanism:crushing",
-  "input": { "ingredient": { "item": "minecraft:iron_ore" }, "count": 1 },
-  "output": { "id": "mekanism:dust_iron", "count": 4 }
-}
-```
-
-Mekanism uses `SizedIngredient.FLAT_CODEC` for inputs: a flat structure with
-an item/tag key and an optional `count`. Outputs use `ItemStack` with `id`+`count`.
-
-```json
-{
-  "_meta": { "type": "mekanism:crushing", "source": "bundled",
-             "mod_version_target": "1.21.x", "engine_version": "1.0" },
-  "fields": {
-    "type":   { "descriptor": "ConstantField", "constantValue": "mekanism:crushing" },
-    "input": {
-      "descriptor": "IngredientField", "optional": false,
-      "acceptedTypes": ["ITEM", "ITEM_TAG"],
-      "subfields": {
-        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                   "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
-      }
-    },
-    "output": {
-      "descriptor": "IngredientField", "optional": false,
-      "acceptedTypes": ["ITEM"],
-      "subfields": {
-        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                   "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
-      }
-    }
-  }
-}
-```
-
----
-
-### Example D — Mekanism Reaction (multi-type: item + fluid + chemical → optional outputs)
-
-Recipe JSON:
-```json
-{
-  "type": "mekanism:reaction",
-  "item_input":     { "ingredient": { "tag": "forge:dusts/sulfur" }, "count": 1 },
-  "fluid_input":    { "fluid": "minecraft:water", "amount": 100 },
-  "chemical_input": { "chemical": "mekanism:hydrogen", "amount": 100 },
-  "duration":       100,
-  "item_output":    { "id": "minecraft:gunpowder", "count": 1 }
-}
-```
-
-`chemical_output` is absent here but is a valid optional field (see serializer).
-Both `item_output` and `chemical_output` can be absent only if the other is present.
-
-```json
-{
-  "_meta": {
-    "type": "mekanism:reaction", "source": "bundled",
-    "mod_version_target": "1.21.x", "engine_version": "1.0",
-    "_note": "At least one of item_output or chemical_output must be present."
-  },
-  "fields": {
-    "type":            { "descriptor": "ConstantField", "constantValue": "mekanism:reaction" },
-    "item_input":      { "descriptor": "IngredientField", "optional": false,
-                         "acceptedTypes": ["ITEM", "ITEM_TAG"],
-                         "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                                                   "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
-    "fluid_input":     { "descriptor": "IngredientField", "optional": false,
-                         "acceptedTypes": ["FLUID"],
-                         "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                                                    "optional": false, "defaultValue": "100", "min": 1, "max": 10000000 } } },
-    "chemical_input":  { "descriptor": "IngredientField", "optional": false,
-                         "acceptedTypes": ["CHEMICAL_GAS"],
-                         "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                                                    "optional": false, "defaultValue": "100", "min": 1, "max": 10000000 } } },
-    "energy_required": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                         "optional": true, "defaultValue": "0", "min": 0, "max": 2147483647 },
-    "duration":        { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                         "optional": false, "defaultValue": "100", "min": 1, "max": 1000000 },
-    "item_output":     { "descriptor": "IngredientField", "optional": true,
-                         "acceptedTypes": ["ITEM"],
-                         "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                                                   "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
-    "chemical_output": { "descriptor": "IngredientField", "optional": true,
-                         "acceptedTypes": ["CHEMICAL_GAS"],
-                         "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                                                    "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 } } }
-  }
-}
-```
-
----
-
-### Example E — Farmers Delight Cutting (item + tool → chance outputs, sound)
-
-Recipe JSON:
-```json
-{
-  "type": "farmersdelight:cutting",
-  "ingredients": [{ "item": "minecraft:melon" }],
-  "tool":        { "tag": "forge:tools/knives" },
-  "result": [
-    { "item": "minecraft:melon_slice", "count": 3 },
-    { "item": "minecraft:melon_slice", "count": 1, "chance": 0.5 }
-  ],
-  "sound": "minecraft:block.wood.break"
-}
-```
-
-The `result` list is an `ArrayField` of `ChanceField` entries (each result may
-have an optional `chance`). The `sound` is a ResourceLocation free string.
-
-```json
-{
-  "_meta": { "type": "farmersdelight:cutting", "source": "bundled",
-             "mod_version_target": "1.21", "engine_version": "1.0" },
-  "fields": {
-    "type": { "descriptor": "ConstantField", "constantValue": "farmersdelight:cutting" },
-    "ingredients": {
-      "descriptor": "ArrayField", "optional": false,
-      "elementDescriptor": {
-        "descriptor": "IngredientField", "optional": false,
-        "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {}
-      },
-      "minItems": 1, "maxItems": 1
-    },
-    "tool": {
-      "descriptor": "IngredientField", "optional": false,
-      "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {}
-    },
-    "result": {
-      "descriptor": "ArrayField", "optional": false,
-      "elementDescriptor": {
-        "descriptor": "ChanceField", "optional": false,
-        "ingredient": {
-          "descriptor": "IngredientField", "optional": false,
-          "acceptedTypes": ["ITEM"],
-          "subfields": {
-            "count": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                       "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
-          }
-        },
-        "chance": {
-          "descriptor": "ScalarField", "scalarType": "FLOAT",
-          "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0
-        }
-      },
-      "minItems": 1, "maxItems": 4
-    },
-    "sound": {
-      "descriptor": "ScalarField", "scalarType": "FREE_STRING",
-      "optional": true, "defaultValue": "minecraft:block.wood.break"
-    }
-  }
-}
-```
-
----
-
-### Example F — AE2 Inscriber (optional top/bottom, mode enum)
-
-Recipe JSON:
-```json
-{
-  "type": "appeng:inscriber",
-  "middle": { "item": "minecraft:diamond" },
-  "top":    { "item": "ae2:silicon_press" },
-  "result": { "item": "ae2:printed_silicon" },
-  "mode":   "press"
-}
-```
-
-`top` and `bottom` are optional. `mode` can be `"inscribe"` or `"press"`.
-
-```json
-{
-  "_meta": { "type": "appeng:inscriber", "source": "bundled",
-             "mod_version_target": "1.21.1", "engine_version": "1.0" },
-  "fields": {
-    "type":   { "descriptor": "ConstantField", "constantValue": "appeng:inscriber" },
-    "top":    { "descriptor": "IngredientField", "optional": true,
-                "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
-    "middle": { "descriptor": "IngredientField", "optional": false,
-                "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
-    "bottom": { "descriptor": "IngredientField", "optional": true,
-                "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
-    "result": {
-      "descriptor": "IngredientField", "optional": false,
-      "acceptedTypes": ["ITEM"],
-      "subfields": {
-        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER",
-                   "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
-      }
-    },
-    "mode": {
-      "descriptor": "ScalarField", "scalarType": "ENUM_STRING",
-      "optional": false, "defaultValue": "inscribe",
-      "enumValues": ["inscribe", "press"]
-    }
-  }
-}
-```
-
----
-
-## 7. Common mistakes
-
-| Mistake | Fix |
-|---|---|
-| Omitting `"type"` field from `fields` | Add `{ "descriptor": "ConstantField", "constantValue": "<type id>" }` |
-| Using `"FLUID"` in `acceptedTypes` but no `amount` in `subfields` | Add an `amount` ScalarField(INTEGER) as subfield |
-| `"optional": false` on a field that the serializer marks optional | Check the codec for `optionalFieldOf` or `Optional<>` |
-| Missing enum values (only listing examples seen in data) | Check the enum class source for all constants |
-| Numeric `min`/`max` copied from example values instead of serializer limits | Look at validation code in the serializer, not at recipe examples |
-| `"source"` not set to `"bundled"` | The registry ignores the file until this is exactly `"bundled"` |
-
----
-
-## 8. Test your fragments
-
-You can add and correct field definitions using **fragments**. A fragment is a small JSON patch
-applied on top of any template (inferred or bundled) at game load time.
-Fragments are stored in your game's `config/` directory, so no recompile is ever needed.
-
-### 8.1 Where to put the file
-
-```
-<minecraft_instance>/
-└── config/
-    └── kubejsrecipeeditor/
-        └── templates/
-            └── fragments/
-                ├── _global.json                  ← applies to every recipe type
-                ├── create__.json                 ← applies to all  create:*  types
-                └── create__mixing.json           ← applies only to create:mixing
-```
-
-Create the `fragments/` folder if it does not exist — the mod will not create it automatically.
-
-**Naming convention** (`__` = double underscore):
-
-| File name | Applies to |
-|---|---|
-| `_global.json` | All recipe types |
-| `<namespace>__.json` | All types in that namespace (`<namespace>:*`) |
-| `<namespace>__<path>.json` | One specific type (`<namespace>:<path>`) |
-| `<namespace>__<path_a>__<path_b>.json` | Type with slash in path (`<namespace>:<path_a>/<path_b>`) |
-
-### 8.2 Fragment structure
-
-```json
-{
-  "_meta": {
-    "description": "Human-readable description of what this fragment does",
-    "author":      "your_name (optional)",
-    "priority":    10,
-    "targets":     ["create:mixing"]
-  },
-
-  "add_fields": {
-    "new_field_key": {
-      "descriptor":   "ScalarField",
-      "scalarType":   "ENUM_STRING",
-      "optional":     true,
-      "defaultValue": "value_a",
-      "enumValues":   ["value_a", "value_b", "value_c"],
-      "display_label": "My Field"
-    }
-  },
-
-  "override_fields": {
-    "existing_field_key": {
-      "optional":     true,
-      "defaultValue": "new_default",
-      "min":          0,
-      "max":          100,
-      "acceptedTypes": ["ITEM", "FLUID"],
-      "enumValues":   ["extra_value"],
-      "display_label": "Label shown in GUI"
-    }
-  },
-
-  "remove_fields": ["internal_field_a", "internal_field_b"],
-
-  "add_registry_hints": {
-    "my_custom_key": {
-      "contentType":   "CUSTOM",
-      "registry_key":  "mymod:my_registry",
-      "display_label": "My Resource"
-    }
-  }
-}
-```
-
-| Section | What it does |
-|---|---|
-| `add_fields` | Adds a new field that does not exist in the current template. Error if the key already exists — use `override_fields` instead. |
-| `override_fields` | Partially patches an existing field. Only the listed properties are changed; others are kept. Cannot change the `descriptor` type. |
-| `remove_fields` | Hides fields from the GUI. They are still written to the exported JSON using the template's default value (`ConstantField` semantics). |
-| `add_registry_hints` | Registers a new JSON key → Minecraft registry mapping so the mod can resolve the correct slot colour for custom resource types. |
-
-`priority` (default `0`): fragments with higher priority are applied last and
-win over conflicts. The built-in bundled schemas have implicit priority `0`;
-set your fragment's priority to any positive integer to be sure it takes effect.
-
-`targets` accepts three forms:
-- `"create:mixing"` — one specific type
-- `"create:*"` — all types in the `create` namespace
-- `"*"` — every loaded recipe type
-
-### 8.3 `add_fields` — adding a missing field
+### 5.1 `add_fields` — adding a missing field
 
 Use this when the runtime inference did not detect an optional field (because
 no loaded recipe uses it) and there is no bundled schema for the type yet.
@@ -722,7 +279,8 @@ no loaded recipe uses it) and there is no bundled schema for the type yet.
 in your pack use the default `"none"`, so the inference engine never sees it and
 the GUI shows no heat selector.
 
-`create__mixing.json`:
+**File**: `config/kubejsrecipeeditor/templates/fragments/create__mixing.json`
+
 ```json
 {
   "_meta": {
@@ -743,15 +301,18 @@ the GUI shows no heat selector.
 }
 ```
 
-### 8.4 `override_fields` — correcting an existing field
+---
+
+### 5.2 `override_fields` — correcting an existing field
 
 Use this when a field is already in the template but has the wrong type,
 wrong `acceptedTypes`, or a missing enum value.
 
 **Scenario**: Mekanism Crushing shows the `input` slot as grey (CUSTOM) because
-the inference engine did not recognise the chemical key. You want it purple.
+the inference engine did not recognise the item key. You want it white.
 
-`mekanism__crushing.json`:
+**File**: `config/kubejsrecipeeditor/templates/fragments/mekanism__crushing.json`
+
 ```json
 {
   "_meta": {
@@ -770,7 +331,8 @@ the inference engine did not recognise the chemical key. You want it purple.
 **Scenario**: a ScalarField was inferred as `FREE_STRING` but is actually an
 enum. Add the known values:
 
-`mymod__process.json`:
+**File**: `config/kubejsrecipeeditor/templates/fragments/mymod__process.json`
+
 ```json
 {
   "_meta": {
@@ -787,14 +349,38 @@ enum. Add the known values:
 }
 ```
 
-### 8.5 `remove_fields` — hiding internal fields
+**Scenario**: expand numeric limits on a field.
+
+```json
+{
+  "_meta": {
+    "description": "Allow larger stack sizes",
+    "priority": 5,
+    "targets": ["mymod:*"]
+  },
+  "override_fields": {
+    "stack_size": {
+      "min": 1,
+      "max": 999
+    }
+  }
+}
+```
+
+---
+
+### 5.3 `remove_fields` — hiding internal fields
 
 Use this when the GUI shows a field that the user should never edit directly
 (e.g. an internal version counter or a computed hash).
 
 ```json
 {
-  "_meta": { "description": "Hide internal fields", "priority": 5, "targets": ["mymod:thing"] },
+  "_meta": {
+    "description": "Hide internal fields",
+    "priority": 5,
+    "targets": ["mymod:thing"]
+  },
   "remove_fields": ["_version", "computed_hash"]
 }
 ```
@@ -802,10 +388,45 @@ Use this when the GUI shows a field that the user should never edit directly
 Hidden fields are not shown in the GUI but are still written to the JSON output
 using the value from the original template.
 
-### 8.6 Testing workflow
+---
+
+### 5.4 `add_registry_hints` — registering custom resource types
+
+Use this when a recipe field contains a custom resource type that the mod does not
+recognise natively (not `ITEM`, `FLUID`, `CHEMICAL_GAS`, etc.). This allows the GUI
+to render the slot in the correct colour and connect it to the right registry.
+
+```json
+{
+  "_meta": {
+    "description": "Register custom resources for mymod",
+    "priority": 5,
+    "targets": ["mymod:*"]
+  },
+  "add_registry_hints": {
+    "catalyst": {
+      "contentType": "CUSTOM",
+      "registry_key": "mymod:catalyst",
+      "display_label": "Catalyst"
+    },
+    "modifier": {
+      "contentType": "CUSTOM",
+      "registry_key": "mymod:modifier",
+      "display_label": "Modifier"
+    }
+  }
+}
+```
+
+The `registry_key` should match a Minecraft registry that the mod registers.
+The `display_label` is shown in tooltips and debug output.
+
+---
+
+## 6. Testing workflow
 
 1. **Write the fragment** in `config/kubejsrecipeeditor/templates/fragments/`
-   following the naming convention above.
+   following the naming convention in §2.
 
 2. **Start or resume the game** (the mod loads fragments at game boot, so if the
    game is already running skip to step 3).
@@ -825,9 +446,326 @@ using the value from the original template.
    - Fluid slots (`~` indicator) appear for `FLUID` types
    - Chemical slots appear purple for `CHEMICAL_*` types
    - Removed fields are gone from the GUI
+   - Enum values appear in cycle buttons or dropdowns
 
 6. **Check the export**: build a recipe and click **Export**. Open the output
    `.js` file and confirm the JSON structure matches what the recipe type expects.
 
 7. **Iterate**: edit the fragment file, run `/kre regenerate_templates all` again —
    no game restart required between iterations.
+
+---
+
+## 7. Common patterns
+
+### Pattern A — Expose a hidden optional field (no bundled schema)
+
+Use `add_fields` when a recipe type has no bundled schema and an optional field
+is never seen in the loaded recipes.
+
+```json
+{
+  "_meta": {
+    "description": "Expose optional fields for recipe type",
+    "priority": 5,
+    "targets": ["modname:recipetype"]
+  },
+  "add_fields": {
+    "optional_field_1": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "default_value",
+      "enumValues": ["default_value", "alt_1", "alt_2"]
+    },
+    "optional_field_2": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "100",
+      "min": 1,
+      "max": 1000
+    }
+  }
+}
+```
+
+---
+
+### Pattern B — Fix inference for a common mod
+
+Use `override_fields` to correct how the inference engine classified fields.
+
+```json
+{
+  "_meta": {
+    "description": "Fix field types for modname recipes",
+    "priority": 10,
+    "targets": ["modname:*"]
+  },
+  "override_fields": {
+    "input_item": {
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "input_fluid": {
+      "acceptedTypes": ["FLUID"]
+    },
+    "processing_mode": {
+      "scalarType": "ENUM_STRING",
+      "enumValues": ["fast", "normal", "slow"]
+    }
+  }
+}
+```
+
+---
+
+### Pattern C — Hide debug/internal fields
+
+Use `remove_fields` to declutter the GUI.
+
+```json
+{
+  "_meta": {
+    "description": "Hide internal/debug fields",
+    "priority": 5,
+    "targets": ["modname:*"]
+  },
+  "remove_fields": ["_version", "_internal_hash", "debug_flag"]
+}
+```
+
+---
+
+### Pattern D — Register mod-specific registries
+
+Use `add_registry_hints` for custom resource types.
+
+```json
+{
+  "_meta": {
+    "description": "Register custom registries for modname",
+    "priority": 5,
+    "targets": ["modname:*"]
+  },
+  "add_registry_hints": {
+    "component": {
+      "contentType": "CUSTOM",
+      "registry_key": "modname:component",
+      "display_label": "Component"
+    },
+    "enchantment": {
+      "contentType": "CUSTOM",
+      "registry_key": "minecraft:enchantment",
+      "display_label": "Enchantment"
+    }
+  }
+}
+```
+
+---
+
+## 8. Common mistakes
+
+| Mistake | Fix |
+|---|---|
+| Typo in namespace or type name in `targets` | Double-check against `/kre debug_recipes` output or JEI |
+| Using `add_fields` on a key that already exists | Use `override_fields` instead, or check if the field is already in the template |
+| Forgetting to set `priority` higher than bundled schema (0) | Add `"priority": 5` (or higher) to your fragment |
+| Changing `descriptor` type in `override_fields` | Not allowed. Create a new field with `add_fields` and remove the old one with `remove_fields` if needed. |
+| Not running `/kre regenerate_templates all` after editing | The command is required; changes are not applied automatically until the next game restart or you run it. |
+| Malformed JSON (missing commas, quotes) | Use a JSON validator or your editor's JSON extension |
+| `acceptedTypes` includes `FLUID` but no `amount` subfield | Fluids need an `amount` field; add it to `subfields` |
+
+---
+
+## 9. Debugging
+
+### Check what templates are loaded
+
+Run this command in chat or console:
+```
+/kre debug_recipes <namespace>
+```
+
+Example output:
+```
+create:mixing [bundled (priority 0)]
+  fields: ingredients, results, processing_time, heat_requirement
+  
+mekanism:crushing [inferred (priority 1)]
+  fields: input, output, secondary_output
+  
+mymod:thing [fragment (priority 5)]
+  fields: id, data, count
+```
+
+If your fragment is not listed, check:
+- File is in `config/kubejsrecipeeditor/templates/fragments/`
+- Filename follows the naming convention
+- JSON is valid (use a JSON linter)
+- `targets` in `_meta` matches the recipe type ID
+
+### View template details
+
+```
+/kre debug_templates create:mixing
+```
+
+Shows the full field definitions (FieldDescriptor structures) for the template.
+
+### Reload fragments live
+
+```
+/kre regenerate_templates all
+```
+
+Reads all fragment files and rebuilds templates without restarting the game.
+
+---
+
+## 10. Fragment file examples
+
+### Example 1 — Add missing enum field
+
+**File**: `config/kubejsrecipeeditor/templates/fragments/create__mixing.json`
+
+```json
+{
+  "_meta": {
+    "description": "Expose heat requirement selector",
+    "priority": 5,
+    "targets": ["create:mixing"]
+  },
+  "add_fields": {
+    "heat_requirement": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "none",
+      "enumValues": ["none", "heated", "superheated"],
+      "display_label": "Heat Requirement"
+    }
+  }
+}
+```
+
+---
+
+### Example 2 — Fix inferred slot colours
+
+**File**: `config/kubejsrecipeeditor/templates/fragments/mekanism__reaction.json`
+
+```json
+{
+  "_meta": {
+    "description": "Fix slot colours for Mekanism reaction",
+    "priority": 10,
+    "targets": ["mekanism:reaction"]
+  },
+  "override_fields": {
+    "chemical_input": {
+      "acceptedTypes": ["CHEMICAL_GAS"]
+    },
+    "chemical_output": {
+      "acceptedTypes": ["CHEMICAL_GAS"]
+    },
+    "item_input": {
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "item_output": {
+      "acceptedTypes": ["ITEM"]
+    }
+  }
+}
+```
+
+---
+
+### Example 3 — Fix enum inference + hide internal fields
+
+**File**: `config/kubejsrecipeeditor/templates/fragments/farmersdelight__.json`
+
+```json
+{
+  "_meta": {
+    "description": "Fix Farmers Delight recipe fields",
+    "priority": 8,
+    "targets": ["farmersdelight:*"]
+  },
+  "override_fields": {
+    "sound": {
+      "scalarType": "ENUM_STRING",
+      "enumValues": [
+        "minecraft:block.wood.break",
+        "minecraft:block.stone.break",
+        "minecraft:item.crop.plant",
+        "minecraft:item.crop.harvest"
+      ],
+      "defaultValue": "minecraft:block.wood.break"
+    }
+  },
+  "remove_fields": ["_version", "_author"]
+}
+```
+
+---
+
+### Example 4 — Register custom registries
+
+**File**: `config/kubejsrecipeeditor/templates/fragments/appeng__.json`
+
+```json
+{
+  "_meta": {
+    "description": "Register AE2 custom types",
+    "priority": 5,
+    "targets": ["appeng:*"]
+  },
+  "add_registry_hints": {
+    "crystal": {
+      "contentType": "CUSTOM",
+      "registry_key": "ae2:crystal",
+      "display_label": "AE2 Crystal"
+    },
+    "energy": {
+      "contentType": "CUSTOM",
+      "registry_key": "ae2:energy_cell",
+      "display_label": "Energy Cell"
+    }
+  }
+}
+```
+
+---
+
+### Example 5 — Global fixes for all recipes
+
+**File**: `config/kubejsrecipeeditor/templates/fragments/_global.json`
+
+```json
+{
+  "_meta": {
+    "description": "Global overrides for all recipe types",
+    "priority": 1,
+    "targets": ["*"]
+  },
+  "remove_fields": ["debug_id", "internal_nbt"],
+  "override_fields": {
+    "count": {
+      "min": 1,
+      "max": 999
+    }
+  }
+}
+```
+
+---
+
+## 11. When to use fragments vs. reporting an issue
+
+- **Use a fragment** if you want to patch a specific recipe type in your game instance.
+- **Report an issue** if you find a bundled schema is incomplete or incorrect.
+- **Report an issue** if the inference engine consistently misidentifies a field type.
+
+Fragments are for customization; bundled schemas are for mod support at the source.
