@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "type": "silentgear:shaped_gear_crafting",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Extends ExtendedShapedRecipe (vanilla ShapedRecipe + showNotification flag). result must be a GearItem. Standard shaped crafting fields."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:shaped_gear_crafting"
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    },
+    "pattern": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 3,
+      "elementDescriptor": {
+        "descriptor": "ScalarField",
+        "scalarType": "FREE_STRING",
+        "optional": false
+      }
+    },
+    "key": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "*": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"]
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "show_notification": {
+      "descriptor": "ScalarField",
+      "scalarType": "BOOLEAN",
+      "optional": true,
+      "defaultValue": "true"
+    }
+  }
+}

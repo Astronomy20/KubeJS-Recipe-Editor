@@ -269,11 +269,36 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
         return fullW;
     }
 
+    /**
+     * Returns the effective panel height used for imageHeight and widget Y positioning.
+     *
+     * Mirrors the narrowing logic of {@link #recipePanelBgWidth()}: when the JEI background
+     * declares a height much larger than the vertical extent of the interactive slots (e.g.
+     * create:item_application, where all slots sit in a single row inside a tall background),
+     * we shrink the panel to the slot bounding-box. The JEI background texture is still drawn
+     * at its full declared height — transparent/empty rows below the slots overflow harmlessly
+     * into the extra-params area, which is invisible for categories that have none.
+     */
     private int recipePanelBgHeight() {
         if (isCompostingCategory || isFuelCategory) return CRAFT_CELL;
         IDrawable bg = resolveDrawableBackground();
-        if (bg != null) return bg.getHeight();
-        return category.getHeight();
+        int fullH = (bg != null) ? bg.getHeight() : category.getHeight();
+
+        // Mirror the width-narrowing logic for the vertical axis.
+        ResourceLocation uid = category.getRecipeType().getUid();
+        boolean isVanilla = "minecraft".equals(uid.getNamespace());
+        if (!isVanilla && !usesCraftingInputGrid()
+                && capturedLayout != null && !capturedLayout.slots().isEmpty()) {
+            int minY = capturedLayout.slots().stream()
+                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
+            int maxY = capturedLayout.slots().stream()
+                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).max().orElse(0) + CRAFT_CELL;
+            int slotSpanY = maxY - minY;
+            if (slotSpanY > 0 && slotSpanY < fullH * 7 / 10) {
+                return Math.max(slotSpanY + CRAFT_CELL * 2, fullH * 3 / 4);
+            }
+        }
+        return fullH;
     }
 
     /**

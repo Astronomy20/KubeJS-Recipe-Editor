@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "type": "apotheosis:reforging",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0",
+    "_note": "The 'rarity' field references a LootRarity datapack entry ID (e.g. apotheosis:common). The 'tables' field is a HolderSet of Block registry IDs representing valid reforging table blocks."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "apotheosis:reforging" },
+    "rarity": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    },
+    "material_cost": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "defaultValue": "1",
+      "min": 1,
+      "max": 99
+    },
+    "sigil_cost": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "defaultValue": "0",
+      "min": 0,
+      "max": 99
+    },
+    "level_cost": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "defaultValue": "0",
+      "min": 0,
+      "max": 65536
+    },
+    "tables": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ScalarField",
+        "scalarType": "FREE_STRING",
+        "optional": false
+      }
+    }
+  }
+}

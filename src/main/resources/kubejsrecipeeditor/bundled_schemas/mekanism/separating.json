@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "type": "mekanism:separating",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "mekanism:separating" },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 }
+      }
+    },
+    "energy_multiplier": {
+      "descriptor": "ScalarField", "scalarType": "FLOAT",
+      "optional": true, "defaultValue": "1.0", "min": 0.1, "max": 100.0
+    },
+    "left_chemical_output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["CHEMICAL_GAS"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 }
+      }
+    },
+    "right_chemical_output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["CHEMICAL_GAS"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 }
+      }
+    }
+  }
+}

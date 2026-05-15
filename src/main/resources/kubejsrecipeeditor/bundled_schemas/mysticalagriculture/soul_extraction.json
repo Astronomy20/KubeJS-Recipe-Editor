@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "type": "mysticalagriculture:soul_extraction",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "mysticalagriculture:soul_extraction" },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": false,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "souls": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": false,
+          "min": 0.0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "type": "justdirethings:goospreadrecipe",
+    "source": "bundled",
+    "mod_version_target": "main branch (Direwolf20-MC/JustDireThings)",
+    "engine_version": "1.0",
+    "_note": "Defines how goo spreads from one block to another. input/output are block states (not items). tierRequirement: minimum tool tier needed. craftingDuration in ticks."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "justdirethings:goospreadrecipe"
+    },
+    "input": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "Name": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        }
+      }
+    },
+    "output": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "Name": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        }
+      }
+    },
+    "tierRequirement": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0
+    },
+    "craftingDuration": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1
+    }
+  }
+}

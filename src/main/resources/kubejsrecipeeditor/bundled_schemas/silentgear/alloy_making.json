@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "type": "silentgear:alloy_making",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Generic alloy making recipe. Sub-types (crude/fabric/gem/metal/super) share the same codec structure with different type constants."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:alloy_making"
+    },
+    "result": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "item": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        },
+        "material": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        }
+      }
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    }
+  }
+}

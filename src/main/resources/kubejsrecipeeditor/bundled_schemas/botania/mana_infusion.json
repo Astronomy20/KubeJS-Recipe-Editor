@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "type": "botania:mana_infusion",
+    "source": "bundled",
+    "mod_version_target": "1.21.1-porting",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "botania:mana_infusion" },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+      }
+    },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "mana": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1,
+      "max": 1000000
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "catalyst": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField",
+          "scalarType": "ENUM_STRING",
+          "optional": false,
+          "enumValues": ["block", "state", "tag", "any_of", "all_of_excluding", "none"]
+        },
+        "block": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        }
+      }
+    }
+  }
+}

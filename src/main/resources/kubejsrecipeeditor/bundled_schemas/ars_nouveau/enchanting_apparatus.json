@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "type": "ars_nouveau:enchanting_apparatus",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "ars_nouveau:enchanting_apparatus" },
+    "reagent": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+      }
+    },
+    "pedestalItems": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    },
+    "sourceCost": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "defaultValue": "0",
+      "min": 0
+    },
+    "keepNbtOfReagent": {
+      "descriptor": "ScalarField",
+      "scalarType": "BOOLEAN",
+      "optional": true,
+      "defaultValue": "false"
+    }
+  }
+}

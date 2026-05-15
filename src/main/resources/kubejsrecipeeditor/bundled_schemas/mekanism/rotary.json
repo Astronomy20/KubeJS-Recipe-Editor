@@ -1,0 +1,16 @@
+{
+  "_meta": {
+    "type": "mekanism:rotary",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0",
+    "_note": "Rotary Condensentrator. Bidirectional: either fluid_input+chemical_output, chemical_input+fluid_output, or both. At least one direction must be specified."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "mekanism:rotary" },
+    "fluid_input": { "descriptor": "IngredientField", "optional": true, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 } } },
+    "chemical_input": { "descriptor": "IngredientField", "optional": true, "acceptedTypes": ["CHEMICAL_GAS"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 } } },
+    "chemical_output": { "descriptor": "IngredientField", "optional": true, "acceptedTypes": ["CHEMICAL_GAS"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 } } },
+    "fluid_output": { "descriptor": "IngredientField", "optional": true, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 } } }
+  }
+}

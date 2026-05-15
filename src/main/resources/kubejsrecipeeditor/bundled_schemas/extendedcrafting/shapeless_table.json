@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "type": "extendedcrafting:shapeless_table",
+    "source": "bundled",
+    "mod_version_target": "1.21 branch (BlakeBr0/ExtendedCrafting)",
+    "engine_version": "1.0",
+    "_note": "tier 0 = auto-select. ingredients max 81 (9x9 table)."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "extendedcrafting:shapeless_table"
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 81,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "tier": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0,
+      "max": 4,
+      "enumValues": ["0", "1", "2", "3", "4"]
+    }
+  }
+}

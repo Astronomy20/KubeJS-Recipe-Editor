@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "type": "botania:brew",
+    "source": "bundled",
+    "mod_version_target": "1.21.1-porting",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "botania:brew" },
+    "brew": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    }
+  }
+}

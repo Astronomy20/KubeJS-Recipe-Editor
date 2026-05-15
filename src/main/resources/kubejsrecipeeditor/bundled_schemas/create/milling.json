@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "type": "create:milling",
+    "source": "bundled",
+    "mod_version_target": "mc1.21.1/dev",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "create:milling" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"],
+        "subfields": {}
+      },
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 },
+          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT", "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 4
+    },
+    "processing_time": {
+      "descriptor": "ScalarField", "scalarType": "INTEGER",
+      "optional": true, "defaultValue": "100", "min": 0, "max": 72000
+    }
+  }
+}

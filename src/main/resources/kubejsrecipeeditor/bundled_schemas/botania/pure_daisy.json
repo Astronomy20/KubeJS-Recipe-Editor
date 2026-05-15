@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "type": "botania:pure_daisy",
+    "source": "bundled",
+    "mod_version_target": "1.21.1-porting",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "botania:pure_daisy" },
+    "input": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField",
+          "scalarType": "ENUM_STRING",
+          "optional": false,
+          "enumValues": ["block", "state", "tag", "any_of", "all_of_excluding"]
+        },
+        "block": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        }
+      }
+    },
+    "output": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField",
+          "scalarType": "ENUM_STRING",
+          "optional": false,
+          "enumValues": ["block", "state", "tag", "any_of", "all_of_excluding"]
+        },
+        "block": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        }
+      }
+    },
+    "time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0
+    },
+    "copy_properties": {
+      "descriptor": "ScalarField",
+      "scalarType": "BOOLEAN",
+      "optional": true,
+      "defaultValue": "false"
+    }
+  }
+}

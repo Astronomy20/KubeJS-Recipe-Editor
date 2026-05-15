@@ -1,0 +1,14 @@
+{
+  "_meta": { "type": "appeng:quartz_cutting", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "appeng:quartz_cutting" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+      "minItems": 1,
+      "maxItems": 9
+    },
+    "result": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } }
+  }
+}

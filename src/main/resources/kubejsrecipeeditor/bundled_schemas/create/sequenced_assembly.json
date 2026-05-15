@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "type": "create:sequenced_assembly",
+    "source": "bundled",
+    "mod_version_target": "mc1.21.1/dev",
+    "engine_version": "1.0",
+    "_note": "Multi-step assembly recipe. Each step in 'sequence' is a partial recipe (deploying, pressing, filling, etc.) that consumes the transitional item."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "create:sequenced_assembly" },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "subfields": {}
+    },
+    "transitional_item": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
+      }
+    },
+    "sequence": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "type": {
+            "descriptor": "ScalarField", "scalarType": "ENUM_STRING",
+            "optional": false, "defaultValue": "create:deploying",
+            "enumValues": ["create:deploying", "create:pressing", "create:filling", "create:cutting", "create:item_application"]
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 32
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 },
+          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT", "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 9
+    },
+    "loops": {
+      "descriptor": "ScalarField", "scalarType": "INTEGER",
+      "optional": true, "defaultValue": "1", "min": 1, "max": 100
+    }
+  }
+}

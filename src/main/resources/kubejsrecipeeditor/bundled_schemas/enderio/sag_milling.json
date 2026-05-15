@@ -1,0 +1,24 @@
+{
+  "_meta": { "type": "enderio:sag_milling", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "enderio:sag_milling" },
+    "input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+    "outputs": {
+      "descriptor": "ArrayField", "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField", "optional": false, "collapsible": true,
+        "children": {
+          "item": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT", "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 }
+        }
+      },
+      "minItems": 1, "maxItems": 8
+    },
+    "energy": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "5000", "min": 1, "max": 2147483647 },
+    "bonus": {
+      "descriptor": "ScalarField", "scalarType": "ENUM_STRING",
+      "optional": true, "defaultValue": "MULTIPLY_OUTPUT",
+      "enumValues": ["MULTIPLY_OUTPUT", "BONUS_OUTPUT", "NONE"]
+    }
+  }
+}

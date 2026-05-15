@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "type": "justdirethings:abilityrecipe",
+    "source": "bundled",
+    "mod_version_target": "main branch (Direwolf20-MC/JustDireThings)",
+    "engine_version": "1.0",
+    "_note": "Smithing-style recipe to apply an ability upgrade to a tool. template is optional (smithing template slot). base and addition are required."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "justdirethings:abilityrecipe"
+    },
+    "template": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "base": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "addition": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    }
+  }
+}

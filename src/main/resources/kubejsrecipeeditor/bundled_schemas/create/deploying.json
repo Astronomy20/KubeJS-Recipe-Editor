@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "type": "create:deploying",
+    "source": "bundled",
+    "mod_version_target": "mc1.21.1/dev",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "create:deploying" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"],
+        "subfields": {}
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 },
+          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT", "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 2
+    },
+    "processing_time": {
+      "descriptor": "ScalarField", "scalarType": "INTEGER",
+      "optional": true, "defaultValue": "100", "min": 0, "max": 72000
+    },
+    "keep_held_item": {
+      "descriptor": "ScalarField", "scalarType": "BOOLEAN",
+      "optional": true, "defaultValue": "false"
+    }
+  }
+}

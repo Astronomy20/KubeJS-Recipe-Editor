@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "type": "create:compacting",
+    "source": "bundled",
+    "mod_version_target": "mc1.21.1/dev",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "create:compacting" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG", "FLUID"],
+        "subfields": {
+          "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1000", "min": 1, "max": 2147483647 }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 9
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "FLUID"],
+        "subfields": {
+          "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 },
+          "chance": { "descriptor": "ScalarField", "scalarType": "FLOAT", "optional": true, "defaultValue": "1.0", "min": 0.0, "max": 1.0 },
+          "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1000", "min": 1, "max": 2147483647 }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 9
+    },
+    "processing_time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "100",
+      "min": 0,
+      "max": 72000
+    },
+    "heat_requirement": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "none",
+      "enumValues": ["none", "heated", "superheated"]
+    }
+  }
+}

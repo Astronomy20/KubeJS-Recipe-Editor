@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "type": "industrialforegoing:crusher",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "industrialforegoing:crusher"
+    },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "_note": "The crushed result - typically the next tier down (cobblestone->gravel->sand)"
+    }
+  }
+}

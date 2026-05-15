@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "type": "actuallyadditions:coffee_ingredient",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "actuallyadditions:coffee_ingredient" },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "effects": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "minItems": 0,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "id": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          },
+          "amplifier": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "0",
+            "min": 0
+          },
+          "duration": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "200",
+            "min": 1
+          }
+        }
+      }
+    },
+    "max_amplifier": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0
+    },
+    "extra_text": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    }
+  }
+}

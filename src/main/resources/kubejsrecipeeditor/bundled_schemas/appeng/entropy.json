@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "type": "appeng:entropy",
+    "source": "bundled",
+    "mod_version_target": "1.21.1",
+    "engine_version": "1.0",
+    "_note": "Entropy Manipulator recipe. Transforms blocks/fluids via heat or cool mode. Input/output use block state or fluid matching."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "appeng:entropy" },
+    "mode": {
+      "descriptor": "ScalarField", "scalarType": "ENUM_STRING",
+      "optional": false, "defaultValue": "heat",
+      "enumValues": ["heat", "cool"]
+    },
+    "input": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "block": {
+          "descriptor": "ObjectField", "optional": true, "collapsible": true,
+          "children": {
+            "id": { "descriptor": "ScalarField", "scalarType": "FREE_STRING", "optional": false, "defaultValue": "" },
+            "properties": { "descriptor": "ObjectField", "optional": true, "collapsible": true, "children": {} }
+          }
+        },
+        "fluid": {
+          "descriptor": "ObjectField", "optional": true, "collapsible": true,
+          "children": {
+            "id": { "descriptor": "ScalarField", "scalarType": "FREE_STRING", "optional": false, "defaultValue": "" },
+            "properties": { "descriptor": "ObjectField", "optional": true, "collapsible": true, "children": {} }
+          }
+        }
+      }
+    },
+    "output": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "block": {
+          "descriptor": "ObjectField", "optional": true, "collapsible": true,
+          "children": {
+            "id": { "descriptor": "ScalarField", "scalarType": "FREE_STRING", "optional": false, "defaultValue": "" },
+            "keep_properties": { "descriptor": "ScalarField", "scalarType": "BOOLEAN", "optional": true, "defaultValue": "false" }
+          }
+        },
+        "fluid": {
+          "descriptor": "ObjectField", "optional": true, "collapsible": true,
+          "children": {
+            "id": { "descriptor": "ScalarField", "scalarType": "FREE_STRING", "optional": false, "defaultValue": "" },
+            "keep_properties": { "descriptor": "ScalarField", "scalarType": "BOOLEAN", "optional": true, "defaultValue": "false" }
+          }
+        },
+        "drops": {
+          "descriptor": "ArrayField", "optional": true,
+          "elementDescriptor": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+          "minItems": 0, "maxItems": 16
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "type": "ars_nouveau:budding_conversion",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "ars_nouveau:budding_conversion" },
+    "input": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    },
+    "result": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "type": "enderio:soul_binding",
+    "source": "bundled",
+    "mod_version_target": "1.21.1",
+    "engine_version": "1.0",
+    "_note": "entity_type, mob_category, and soul_data are mutually exclusive — only one may be set."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "enderio:soul_binding" },
+    "input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+    "output": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "energy": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "5000", "min": 1, "max": 2147483647 },
+    "experience": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "0", "min": 0, "max": 100000 },
+    "entity_type": { "descriptor": "ScalarField", "scalarType": "FREE_STRING", "optional": true, "defaultValue": "" },
+    "mob_category": {
+      "descriptor": "ScalarField", "scalarType": "ENUM_STRING", "optional": true, "defaultValue": "",
+      "enumValues": ["monster", "creature", "ambient", "water_creature", "water_ambient", "underground_water_creature", "axolotls", "misc"]
+    },
+    "soul_data": { "descriptor": "ScalarField", "scalarType": "FREE_STRING", "optional": true, "defaultValue": "" },
+    "copyInputComponents": { "descriptor": "ScalarField", "scalarType": "BOOLEAN", "optional": true, "defaultValue": "false" }
+  }
+}

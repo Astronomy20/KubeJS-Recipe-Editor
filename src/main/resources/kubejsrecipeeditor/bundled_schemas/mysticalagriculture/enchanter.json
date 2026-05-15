@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "type": "mysticalagriculture:enchanter",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "mysticalagriculture:enchanter" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 2,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": false,
+        "children": {
+          "item": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM", "ITEM_TAG"]
+          },
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "enchantment": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    }
+  }
+}

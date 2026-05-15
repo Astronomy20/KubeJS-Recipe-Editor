@@ -1,0 +1,14 @@
+{
+  "_meta": { "type": "immersiveengineering:mixer", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "immersiveengineering:mixer" },
+    "inputs": {
+      "descriptor": "ArrayField", "optional": false,
+      "elementDescriptor": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+      "minItems": 0, "maxItems": 6
+    },
+    "fluid": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 2147483647 } } },
+    "result": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 2147483647 } } },
+    "energy": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "5120", "min": 1, "max": 2147483647 }
+  }
+}

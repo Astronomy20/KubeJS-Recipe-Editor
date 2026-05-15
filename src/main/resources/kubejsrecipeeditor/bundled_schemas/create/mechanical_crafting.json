@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "type": "create:mechanical_crafting",
+    "source": "bundled",
+    "mod_version_target": "mc1.21.1/dev",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "create:mechanical_crafting" },
+    "pattern": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ScalarField", "scalarType": "FREE_STRING",
+        "optional": false, "defaultValue": ""
+      },
+      "minItems": 1,
+      "maxItems": 9
+    },
+    "key": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {}
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
+      }
+    },
+    "mirror": {
+      "descriptor": "ScalarField", "scalarType": "BOOLEAN",
+      "optional": true, "defaultValue": "false"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "type": "silentgear:salvaging",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Deconstruct a gear item into part materials. results list = possible output stacks."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:salvaging"
+    },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 0,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    }
+  }
+}

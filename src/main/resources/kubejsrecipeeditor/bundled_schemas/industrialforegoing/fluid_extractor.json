@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "type": "industrialforegoing:fluid_extractor",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "industrialforegoing:fluid_extractor"
+    },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false,
+      "_note": "BlockState resource location - the block left behind after extraction (e.g. 'minecraft:stripped_oak_log' or 'minecraft:air')"
+    },
+    "breakChance": {
+      "descriptor": "ScalarField",
+      "scalarType": "FLOAT",
+      "optional": false,
+      "min": 0.0,
+      "max": 1.0
+    },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    },
+    "defaultRecipe": {
+      "descriptor": "ScalarField",
+      "scalarType": "BOOLEAN",
+      "optional": true,
+      "defaultValue": "false",
+      "_note": "If true this recipe is a catch-all fallback for log types not matched by other recipes"
+    }
+  }
+}

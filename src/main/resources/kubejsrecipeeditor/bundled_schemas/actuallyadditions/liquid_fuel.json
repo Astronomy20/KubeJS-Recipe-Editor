@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "type": "actuallyadditions:liquid_fuel",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "actuallyadditions:liquid_fuel" },
+    "fuel": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "min": 1 }
+      }
+    },
+    "total_energy": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1
+    },
+    "burn_time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "type": "productivebees:incubation",
+    "source": "bundled",
+    "mod_version_target": "dev-1.21.0",
+    "engine_version": "1.0",
+    "_note": "The IncubationRecipe codec appears to have a bug where both the input item and catalyst use field name 'input'. The catalyst field may be 'catalyst' at runtime. Verify against actual game data."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "productivebees:incubation" },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "catalyst": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+      }
+    },
+    "processingTime": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0
+    }
+  }
+}

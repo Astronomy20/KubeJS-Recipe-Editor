@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "type": "ars_nouveau:dispel_entity",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "ars_nouveau:dispel_entity" },
+    "entity": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    },
+    "loot_table": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    },
+    "loot_conditions": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "condition": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          }
+        }
+      }
+    }
+  }
+}

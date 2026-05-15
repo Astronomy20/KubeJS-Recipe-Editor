@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "type": "botania:orechid",
+    "source": "bundled",
+    "mod_version_target": "1.21.1-porting",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "botania:orechid" },
+    "input": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField",
+          "scalarType": "ENUM_STRING",
+          "optional": false,
+          "enumValues": ["block", "state", "tag", "any_of", "all_of_excluding"]
+        },
+        "block": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        }
+      }
+    },
+    "output": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField",
+          "scalarType": "ENUM_STRING",
+          "optional": false,
+          "enumValues": ["block", "state", "tag", "any_of", "all_of_excluding"]
+        },
+        "block": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        }
+      }
+    },
+    "mana": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1
+    },
+    "weight": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0
+    },
+    "biome_bonus_weight": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0
+    },
+    "biome_bonus_tag": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true
+    },
+    "cooldown": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0
+    }
+  }
+}

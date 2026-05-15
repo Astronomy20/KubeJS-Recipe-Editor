@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "type": "silentgear:compound_part",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Shapeless crafting recipe to create compound gear parts from materials. result must be a CompoundPartItem. Extends ExtendedShapelessRecipe."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:compound_part"
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 9,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    }
+  }
+}

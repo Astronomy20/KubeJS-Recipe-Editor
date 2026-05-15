@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "type": "farmersdelight:cutting",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "farmersdelight:cutting" },
+    "ingredients": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "tool": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 4,
+      "elementDescriptor": {
+        "descriptor": "ChanceField",
+        "optional": false,
+        "ingredient": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM"],
+          "subfields": {
+            "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+          }
+        },
+        "chance": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": true,
+          "defaultValue": "1.0",
+          "min": 0.0,
+          "max": 1.0
+        }
+      }
+    },
+    "sound": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    }
+  }
+}

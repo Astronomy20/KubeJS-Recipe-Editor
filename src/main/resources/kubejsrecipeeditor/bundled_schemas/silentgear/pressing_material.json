@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "type": "silentgear:pressing_material",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Variant of pressing where result must be a ProcessedMaterialItem (CraftedMaterialItem). Inherits PressingRecipe codec."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:pressing_material"
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    }
+  }
+}

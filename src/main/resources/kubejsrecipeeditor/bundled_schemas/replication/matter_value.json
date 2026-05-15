@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "type": "replication:matter_value",
+    "source": "bundled",
+    "mod_version_target": "master branch (Buuz135/Replication)",
+    "engine_version": "1.0",
+    "_note": "Assigns matter values to items/tags for the replication system. Uses Titanium GenericSerializer (not Mojang codec). matter array contains objects with 'type' (ResourceLocation of matter type) and 'value' (double)."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "replication:matter_value"
+    },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "matter": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": false,
+        "children": {
+          "type": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          },
+          "value": {
+            "descriptor": "ScalarField",
+            "scalarType": "FLOAT",
+            "optional": false,
+            "min": 0.0
+          }
+        }
+      }
+    }
+  }
+}

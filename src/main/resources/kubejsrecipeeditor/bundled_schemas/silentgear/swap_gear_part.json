@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "type": "silentgear:swap_gear_part",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "CustomRecipe — swaps a part on a gear item in the crafting grid. Stateless; no JSON codec fields beyond type."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:swap_gear_part"
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    }
+  }
+}

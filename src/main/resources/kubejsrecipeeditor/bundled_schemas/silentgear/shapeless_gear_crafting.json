@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "type": "silentgear:shapeless_gear_crafting",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Extends ExtendedShapelessRecipe. result must be a GearItem. Standard shapeless crafting fields. ingredients max 9."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:shapeless_gear_crafting"
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 9,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    }
+  }
+}

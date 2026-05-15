@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "type": "ars_nouveau:reactive_enchantment",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "ars_nouveau:reactive_enchantment" },
+    "pedestalItems": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    },
+    "sourceCost": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "defaultValue": "0",
+      "min": 0
+    }
+  }
+}

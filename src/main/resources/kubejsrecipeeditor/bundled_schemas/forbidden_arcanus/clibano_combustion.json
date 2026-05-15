@@ -1,0 +1,72 @@
+{
+  "_meta": {
+    "type": "forbidden_arcanus:clibano_combustion",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0",
+    "_note": "The 'ingredients' field accepts either a single Ingredient or a pair {first, second}. 'cooking_time' is a ClibanoCookingTimes object (per fire type). 'enhancer' references an EnhancerDefinition holder. These complex sub-objects are marked as FREE_STRING for now."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "forbidden_arcanus:clibano_combustion" },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["food", "blocks", "misc"]
+    },
+    "ingredients": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+      }
+    },
+    "experience": {
+      "descriptor": "ScalarField",
+      "scalarType": "FLOAT",
+      "optional": true,
+      "defaultValue": "0.0",
+      "min": 0.0
+    },
+    "fire_type": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "fire",
+      "enumValues": ["fire", "soul_fire", "enchanted_fire"]
+    },
+    "residue": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "item": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM"]
+        },
+        "chance": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": false,
+          "defaultValue": "0.1",
+          "min": 0.0,
+          "max": 1.0
+        }
+      }
+    }
+  }
+}

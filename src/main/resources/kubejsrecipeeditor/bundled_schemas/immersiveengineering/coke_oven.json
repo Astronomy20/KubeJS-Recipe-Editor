@@ -1,0 +1,10 @@
+{
+  "_meta": { "type": "immersiveengineering:coke_oven", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "immersiveengineering:coke_oven" },
+    "input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "result": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "creosote": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "500", "min": 0, "max": 100000 },
+    "time": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "200", "min": 1, "max": 100000 }
+  }
+}

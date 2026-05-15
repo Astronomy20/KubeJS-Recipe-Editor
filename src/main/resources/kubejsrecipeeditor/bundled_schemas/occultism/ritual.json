@@ -1,0 +1,134 @@
+{
+  "_meta": {
+    "type": "occultism:ritual",
+    "source": "bundled",
+    "mod_version_target": "version/26.1.2",
+    "engine_version": "1.0",
+    "_note": "Very complex recipe type. ritual_type, ritual_dummy, result and ritual_requirement_settings are the key editable fields. ritual_start_settings and entity_to_summon_settings are advanced optional sub-objects."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "occultism:ritual" },
+    "ritual_type": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    },
+    "ritual_dummy": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"]
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+      }
+    },
+    "ritual_requirement_settings": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "pentacle_id": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "ingredients": {
+          "descriptor": "ArrayField",
+          "optional": true,
+          "elementDescriptor": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM", "ITEM_TAG"]
+          }
+        },
+        "activation_item": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"]
+        },
+        "duration": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "30",
+          "min": 1
+        },
+        "duration_per_ingredient": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "0",
+          "min": 0
+        }
+      }
+    },
+    "ritual_start_settings": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "entity_to_sacrifice": {
+          "descriptor": "ObjectField",
+          "optional": true,
+          "collapsible": true,
+          "children": {
+            "tag": {
+              "descriptor": "ScalarField",
+              "scalarType": "FREE_STRING",
+              "optional": false
+            },
+            "display_name": {
+              "descriptor": "ScalarField",
+              "scalarType": "FREE_STRING",
+              "optional": false
+            }
+          }
+        },
+        "item_to_use": {
+          "descriptor": "IngredientField",
+          "optional": true,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"]
+        }
+      }
+    },
+    "entity_to_summon_settings": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "entity_to_summon": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        },
+        "spirit_job_type": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": true
+        },
+        "spirit_max_age": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "min": 0
+        },
+        "summon_number": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "command": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true
+    }
+  }
+}

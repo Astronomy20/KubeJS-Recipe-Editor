@@ -1,0 +1,9 @@
+{
+  "_meta": { "type": "enderio:painting", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "enderio:painting" },
+    "ingredient": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+    "paint": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+    "result": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": {} }
+  }
+}

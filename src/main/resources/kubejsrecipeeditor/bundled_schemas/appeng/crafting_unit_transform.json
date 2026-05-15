@@ -1,0 +1,8 @@
+{
+  "_meta": { "type": "appeng:crafting_unit_transform", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0", "_note": "Transforms one crafting unit block type to another. Used for upgrade paths." },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "appeng:crafting_unit_transform" },
+    "ingredient": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+    "result": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": {} }
+  }
+}

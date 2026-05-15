@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "type": "create:filling",
+    "source": "bundled",
+    "mod_version_target": "mc1.21.1/dev",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "create:filling" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG", "FLUID"],
+        "subfields": {
+          "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1000", "min": 1, "max": 2147483647 }
+        }
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "processing_time": {
+      "descriptor": "ScalarField", "scalarType": "INTEGER",
+      "optional": true, "defaultValue": "100", "min": 0, "max": 72000
+    }
+  }
+}

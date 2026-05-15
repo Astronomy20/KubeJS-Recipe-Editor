@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "type": "productivebees:centrifuge",
+    "source": "bundled",
+    "mod_version_target": "dev-1.21.0",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "productivebees:centrifuge" },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "outputs": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "ChanceField",
+        "optional": false,
+        "ingredient": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM"],
+          "subfields": {
+            "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+          }
+        },
+        "chance": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": true,
+          "defaultValue": "1.0",
+          "min": 0.0,
+          "max": 1.0
+        }
+      }
+    },
+    "fluid": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "100", "min": 1 }
+      }
+    },
+    "processingTime": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "0",
+      "min": 0
+    }
+  }
+}

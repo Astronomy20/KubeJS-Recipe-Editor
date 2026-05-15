@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "type": "silentgear:quick_repair",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "CustomRecipe — no JSON codec fields. Matches: 1 GearItem (repair modifier > 0) + 1 RepairKitItem + optional repair materials. Stateless."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:quick_repair"
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    }
+  }
+}

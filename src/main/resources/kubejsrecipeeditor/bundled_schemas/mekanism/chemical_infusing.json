@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "type": "mekanism:chemical_infusing",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0",
+    "_note": "In Mekanism 1.21.x, Gas/Slurry/InfuseType/Pigment are unified into Chemical. Use CHEMICAL_GAS slot (purple) for all chemical ingredients/outputs."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "mekanism:chemical_infusing" },
+    "left_input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["CHEMICAL_GAS"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 }
+      }
+    },
+    "right_input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["CHEMICAL_GAS"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 }
+      }
+    },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["CHEMICAL_GAS"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 }
+      }
+    }
+  }
+}

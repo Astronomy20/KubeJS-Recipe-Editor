@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "type": "ars_nouveau:summon_ritual",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "ars_nouveau:summon_ritual" },
+    "augment": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "source": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": false,
+      "enumValues": ["CURRENT_BIOME", "MOB_LIST"]
+    },
+    "count": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "defaultValue": "1",
+      "min": 1
+    },
+    "mobs": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "mob": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          },
+          "weight": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    }
+  }
+}

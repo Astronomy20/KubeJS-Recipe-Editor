@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "type": "extendedcrafting:shaped_ender_crafter",
+    "source": "bundled",
+    "mod_version_target": "1.21 branch (BlakeBr0/ExtendedCrafting)",
+    "engine_version": "1.0",
+    "_note": "crafting_time is in ticks. default comes from ModConfigs.ENDER_CRAFTER_TIME_REQUIRED (config). pattern is 3x3 max shaped."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "extendedcrafting:shaped_ender_crafter"
+    },
+    "pattern": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 3,
+      "elementDescriptor": {
+        "descriptor": "ScalarField",
+        "scalarType": "FREE_STRING",
+        "optional": false
+      }
+    },
+    "key": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "*": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"]
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "crafting_time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "config:ender_crafter_time_required",
+      "min": 1
+    }
+  }
+}

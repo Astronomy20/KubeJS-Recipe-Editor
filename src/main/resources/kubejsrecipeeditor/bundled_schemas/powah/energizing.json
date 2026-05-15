@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "type": "powah:energizing",
+    "source": "bundled",
+    "mod_version_target": "1.21.1",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "powah:energizing"
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "energy": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1,
+      "_note": "Energy in FE/RF. Actual cost is multiplied by energizing_energy_ratio config value."
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 9,
+      "_note": "Item inputs. Note: slot 0 is the energizer rod slot - actual recipe ingredients start from slot 1 in the machine but are all listed here.",
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    }
+  }
+}

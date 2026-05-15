@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "type": "integrateddynamics:mechanical_squeezer",
+    "source": "bundled",
+    "mod_version_target": "20-l",
+    "engine_version": "1.0",
+    "_note": "Like squeezer but adds a required 'duration' field. Branch 20-l is the most recent available."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "integrateddynamics:mechanical_squeezer"
+    },
+    "input_item": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "output_items": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "_note": "At least one of output_items or output_fluid must be present.",
+      "elementDescriptor": {
+        "descriptor": "ChanceField",
+        "optional": false,
+        "ingredient": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"],
+          "subfields": {
+            "count": {
+              "descriptor": "ScalarField",
+              "scalarType": "INTEGER",
+              "optional": true,
+              "defaultValue": "1",
+              "min": 1
+            }
+          }
+        },
+        "chance": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": false,
+          "min": 0.0,
+          "max": 1.0
+        }
+      }
+    },
+    "output_fluid": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    },
+    "duration": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 2,
+      "_note": "Processing duration in ticks. Must be higher than 1."
+    }
+  }
+}

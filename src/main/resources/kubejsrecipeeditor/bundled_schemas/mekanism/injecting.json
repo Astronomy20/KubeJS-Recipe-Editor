@@ -1,0 +1,10 @@
+{
+  "_meta": { "type": "mekanism:injecting", "source": "bundled", "mod_version_target": "1.21.x", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "mekanism:injecting" },
+    "item_input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "chemical_input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["CHEMICAL_GAS"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 10000000 } } },
+    "output": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "per_tick_usage": { "descriptor": "ScalarField", "scalarType": "BOOLEAN", "optional": false, "defaultValue": "false" }
+  }
+}

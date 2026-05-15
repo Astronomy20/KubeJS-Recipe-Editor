@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "type": "silentgear:salvaging_gear",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Salvage a specific gear item by ingredient match. Input must not be stackable (max stack size = 1). Results computed dynamically from gear parts at runtime."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:salvaging_gear"
+    },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "type": "forbidden_arcanus:apply_modifier",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0",
+    "_note": "This is a smithing-table-like recipe. The base slot accepts any item — validation is done by the modifier's isValidItem() logic. 'modifier' references an ItemModifier datapack entry ID."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "forbidden_arcanus:apply_modifier" },
+    "template": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "addition": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "modifier": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": false
+    }
+  }
+}

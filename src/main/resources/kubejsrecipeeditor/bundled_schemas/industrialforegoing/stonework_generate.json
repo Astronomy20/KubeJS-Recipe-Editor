@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "type": "industrialforegoing:stonework_generate",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "industrialforegoing:stonework_generate"
+    },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "waterNeed": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "_note": "Millibuckets of water required in the tank to run the recipe"
+    },
+    "lavaNeed": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "_note": "Millibuckets of lava required in the tank to run the recipe"
+    },
+    "waterConsume": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "_note": "Millibuckets of water consumed per operation"
+    },
+    "lavaConsume": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "_note": "Millibuckets of lava consumed per operation"
+    }
+  }
+}

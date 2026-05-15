@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "type": "justdirethings:fluiddroprecipe",
+    "source": "bundled",
+    "mod_version_target": "main branch (Direwolf20-MC/JustDireThings)",
+    "engine_version": "1.0",
+    "_note": "Converts one fluid block state to another when catalyst item is used. input/output are block states serialized via RecipeCodecs.BLOCK_STATE."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "justdirethings:fluiddroprecipe"
+    },
+    "input": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "Name": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        }
+      }
+    },
+    "output": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "Name": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        }
+      }
+    },
+    "catalyst": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    }
+  }
+}

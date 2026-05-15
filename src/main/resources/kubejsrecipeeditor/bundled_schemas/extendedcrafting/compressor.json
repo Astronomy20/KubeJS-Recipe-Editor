@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "type": "extendedcrafting:compressor",
+    "source": "bundled",
+    "mod_version_target": "1.21 branch (BlakeBr0/ExtendedCrafting)",
+    "engine_version": "1.0",
+    "_note": "ingredient field uses IngredientWithCount (item + count). catalyst is a required non-empty ingredient."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "extendedcrafting:compressor"
+    },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "catalyst": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "power_cost": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "max": 2147483647
+    },
+    "power_rate": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "config:compressor_power_rate",
+      "min": 0,
+      "max": 2147483647
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "type": "bigreactors:fluidizerfluidmixing",
+    "source": "bundled",
+    "mod_version_target": "master",
+    "engine_version": "1.0",
+    "_note": "Extreme Reactors 2 fluidizer fluid mixing recipe: two fluid inputs -> one fluid output. Uses ZeroCore2 TwoToOneRecipeSerializer."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "bigreactors:fluidizerfluidmixing"
+    },
+    "ingredient1": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID", "FLUID_TAG"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1,
+          "_note": "Amount in millibuckets"
+        }
+      }
+    },
+    "ingredient2": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID", "FLUID_TAG"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    }
+  }
+}

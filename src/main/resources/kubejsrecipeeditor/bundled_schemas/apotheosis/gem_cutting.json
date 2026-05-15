@@ -1,0 +1,94 @@
+{
+  "_meta": {
+    "type": "apotheosis:gem_cutting",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0",
+    "_note": "gem_cutting is an interface implemented by BasicGemCuttingRecipe (base+top+left+right ingredients -> output) and PurityUpgradeRecipe (purity+left+right -> upgraded gem). This schema covers BasicGemCuttingRecipe which is the standard concrete implementation."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "apotheosis:gem_cutting" },
+    "base": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "top": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "ingredient": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM", "ITEM_TAG"]
+          },
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "left": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "ingredient": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM", "ITEM_TAG"]
+          },
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "right": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "ingredient": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM", "ITEM_TAG"]
+          },
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "output": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+      }
+    }
+  }
+}

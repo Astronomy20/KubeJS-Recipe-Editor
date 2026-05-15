@@ -1,0 +1,134 @@
+{
+  "_meta": {
+    "type": "industrialforegoing:laser_drill_ore",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "industrialforegoing:laser_drill_ore"
+    },
+    "output": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "_note": "SizedIngredient - the ore item produced",
+      "children": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        },
+        "ingredient": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"]
+        }
+      }
+    },
+    "catalyst": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "_note": "The catalyst item held by the laser drill to unlock this ore entry"
+    },
+    "entity_data": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "_note": "Optional - restricts this entry to a specific entity type being nearby",
+      "children": {
+        "entity": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false,
+          "_note": "Entity type resource location e.g. 'minecraft:wither'"
+        }
+      }
+    },
+    "rarity": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "depth_min": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "min": -64,
+            "max": 320
+          },
+          "depth_max": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "min": -64,
+            "max": 320
+          },
+          "weight": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "min": 1
+          },
+          "biome_filter": {
+            "descriptor": "ObjectField",
+            "optional": true,
+            "collapsible": true,
+            "children": {
+              "whitelist": {
+                "descriptor": "ArrayField",
+                "optional": true,
+                "elementDescriptor": {
+                  "descriptor": "ScalarField",
+                  "scalarType": "FREE_STRING",
+                  "_note": "Biome tag key e.g. '#minecraft:is_overworld'"
+                }
+              },
+              "blacklist": {
+                "descriptor": "ArrayField",
+                "optional": true,
+                "elementDescriptor": {
+                  "descriptor": "ScalarField",
+                  "scalarType": "FREE_STRING"
+                }
+              }
+            }
+          },
+          "dimension_filter": {
+            "descriptor": "ObjectField",
+            "optional": true,
+            "collapsible": true,
+            "children": {
+              "whitelist": {
+                "descriptor": "ArrayField",
+                "optional": true,
+                "elementDescriptor": {
+                  "descriptor": "ScalarField",
+                  "scalarType": "FREE_STRING",
+                  "_note": "Dimension type resource location e.g. 'minecraft:overworld'"
+                }
+              },
+              "blacklist": {
+                "descriptor": "ArrayField",
+                "optional": true,
+                "elementDescriptor": {
+                  "descriptor": "ScalarField",
+                  "scalarType": "FREE_STRING"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

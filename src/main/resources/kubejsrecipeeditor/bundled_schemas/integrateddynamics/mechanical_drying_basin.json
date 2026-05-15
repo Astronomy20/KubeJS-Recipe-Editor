@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "type": "integrateddynamics:mechanical_drying_basin",
+    "source": "bundled",
+    "mod_version_target": "20-l",
+    "engine_version": "1.0",
+    "_note": "Same field structure as drying_basin. Branch 20-l is the most recent available."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "integrateddynamics:mechanical_drying_basin"
+    },
+    "input_item": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "_note": "At least one of input_item or input_fluid must be provided."
+    },
+    "input_fluid": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    },
+    "output_item": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "output_fluid": {
+      "descriptor": "IngredientField",
+      "optional": true,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1
+        }
+      }
+    },
+    "duration": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1,
+      "_note": "Processing duration in ticks. Must be greater than zero."
+    }
+  }
+}

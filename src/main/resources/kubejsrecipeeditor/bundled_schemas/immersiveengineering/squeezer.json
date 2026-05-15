@@ -1,0 +1,10 @@
+{
+  "_meta": { "type": "immersiveengineering:squeezer", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "immersiveengineering:squeezer" },
+    "input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "fluid": { "descriptor": "IngredientField", "optional": true, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "80", "min": 1, "max": 2147483647 } } },
+    "result": { "descriptor": "IngredientField", "optional": true, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "energy": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "3072", "min": 1, "max": 2147483647 }
+  }
+}

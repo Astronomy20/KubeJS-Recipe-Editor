@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "type": "ars_nouveau:crush",
+    "source": "bundled",
+    "mod_version_target": "1.21.x",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "ars_nouveau:crush" },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "output": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "stack": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM"],
+            "subfields": {
+              "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1 }
+            }
+          },
+          "chance": {
+            "descriptor": "ScalarField",
+            "scalarType": "FLOAT",
+            "optional": false,
+            "defaultValue": "1.0",
+            "min": 0.0,
+            "max": 1.0
+          },
+          "maxRange": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "skip_block_place": {
+      "descriptor": "ScalarField",
+      "scalarType": "BOOLEAN",
+      "optional": true,
+      "defaultValue": "false"
+    }
+  }
+}

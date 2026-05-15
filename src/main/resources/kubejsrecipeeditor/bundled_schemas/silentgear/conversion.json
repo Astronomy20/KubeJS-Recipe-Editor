@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "type": "silentgear:conversion",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Shapeless crafting variant that converts a material item to a gear-compatible part. result.item must implement GearItem. result.parts is a list of PartInstance resource locations. ingredients max 9."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:conversion"
+    },
+    "group": {
+      "descriptor": "ScalarField",
+      "scalarType": "FREE_STRING",
+      "optional": true,
+      "defaultValue": ""
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    },
+    "result": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "item": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "parts": {
+          "descriptor": "ArrayField",
+          "optional": false,
+          "minItems": 1,
+          "elementDescriptor": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          }
+        }
+      }
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 9,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    }
+  }
+}

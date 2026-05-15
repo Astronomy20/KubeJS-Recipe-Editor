@@ -1,0 +1,13 @@
+{
+  "_meta": { "type": "immersiveengineering:bottling_machine", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "immersiveengineering:bottling_machine" },
+    "input": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+    "fluid": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 2147483647 } } },
+    "results": {
+      "descriptor": "ArrayField", "optional": false,
+      "elementDescriptor": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM"], "subfields": { "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 } } },
+      "minItems": 1, "maxItems": 4
+    }
+  }
+}

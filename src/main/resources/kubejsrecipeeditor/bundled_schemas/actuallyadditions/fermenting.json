@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "type": "actuallyadditions:fermenting",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "actuallyadditions:fermenting" },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "min": 1 }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "min": 1 }
+      }
+    },
+    "time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 1
+    }
+  }
+}

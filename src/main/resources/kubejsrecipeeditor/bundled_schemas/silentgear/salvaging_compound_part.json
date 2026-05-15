@@ -1,0 +1,15 @@
+{
+  "_meta": {
+    "type": "silentgear:salvaging_compound_part",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Stateless recipe — no configurable fields. Matches any CompoundPartItem with stack size 1. Results computed dynamically via salvagePart(). Codec writes/reads no data."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:salvaging_compound_part"
+    }
+  }
+}

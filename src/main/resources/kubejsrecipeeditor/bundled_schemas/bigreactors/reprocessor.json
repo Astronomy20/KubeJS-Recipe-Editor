@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "type": "bigreactors:reprocessor",
+    "source": "bundled",
+    "mod_version_target": "master",
+    "engine_version": "1.0",
+    "_note": "Extreme Reactors 2 uses the 'bigreactors' namespace (legacy mod ID). The reprocessor multiblock combines a waste item and a fluid to produce an item output. Uses ZeroCore2 TwoToOneRecipeSerializer; output JSON key is 'result'."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "bigreactors:reprocessor"
+    },
+    "waste": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "_note": "The waste item input (e.g. cyanite ingot)"
+    },
+    "fluid": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID", "FLUID_TAG"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1,
+          "_note": "Amount in millibuckets"
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    }
+  }
+}

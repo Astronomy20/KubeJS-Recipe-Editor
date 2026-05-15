@@ -1,0 +1,94 @@
+{
+  "_meta": {
+    "type": "oritech:pulverizer",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0",
+    "_note": "All Oritech machine recipes share the same OritechRecipe codec. Fields fluidInput/fluidOutputs are empty by default for item-only machines."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "oritech:pulverizer"
+    },
+    "time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "60",
+      "min": 1,
+      "_note": "Processing time in ticks"
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "fluidInput": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "fluid": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false,
+          "_note": "Fluid resource location, prefix with '#' for fluid tags"
+        },
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1000",
+          "min": 1
+        }
+      }
+    },
+    "fluidOutputs": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "fluid": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          },
+          "amount": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "min": 1
+          }
+        }
+      }
+    }
+  }
+}

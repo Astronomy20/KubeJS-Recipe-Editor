@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "type": "silentgear:quick_paint",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "CustomRecipe — no JSON codec fields. Applies a color paint to a gear item in the crafting grid. Stateless."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:quick_paint"
+    },
+    "category": {
+      "descriptor": "ScalarField",
+      "scalarType": "ENUM_STRING",
+      "optional": true,
+      "defaultValue": "misc",
+      "enumValues": ["building", "redstone", "equipment", "misc"]
+    }
+  }
+}

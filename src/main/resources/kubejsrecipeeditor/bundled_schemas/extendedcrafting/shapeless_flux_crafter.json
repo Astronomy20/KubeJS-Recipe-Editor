@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "type": "extendedcrafting:shapeless_flux_crafter",
+    "source": "bundled",
+    "mod_version_target": "1.21 branch (BlakeBr0/ExtendedCrafting)",
+    "engine_version": "1.0",
+    "_note": "power_required = total RF. power_rate = RF/t, default from ModConfigs.FLUX_CRAFTER_POWER_RATE. ingredients max 9."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "extendedcrafting:shapeless_flux_crafter"
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 9,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "power_required": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "max": 2147483647
+    },
+    "power_rate": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "config:flux_crafter_power_rate",
+      "min": 0,
+      "max": 2147483647
+    }
+  }
+}

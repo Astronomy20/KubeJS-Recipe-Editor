@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "type": "bigreactors:fluidizersolidmixing",
+    "source": "bundled",
+    "mod_version_target": "master",
+    "engine_version": "1.0",
+    "_note": "Extreme Reactors 2 fluidizer solid mixing recipe: two item inputs -> one fluid output. Uses ZeroCore2 TwoToOneRecipeSerializer."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "bigreactors:fluidizersolidmixing"
+    },
+    "ingredient1": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "ingredient2": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["FLUID"],
+      "subfields": {
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": false,
+          "min": 1,
+          "_note": "Amount in millibuckets"
+        }
+      }
+    }
+  }
+}

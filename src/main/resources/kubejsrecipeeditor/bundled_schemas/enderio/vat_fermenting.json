@@ -1,0 +1,14 @@
+{
+  "_meta": { "type": "enderio:vat_fermenting", "source": "bundled", "mod_version_target": "1.21.1", "engine_version": "1.0" },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "enderio:vat_fermenting" },
+    "input_fluid": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 2147483647 } } },
+    "modifiers": {
+      "descriptor": "ArrayField", "optional": false,
+      "elementDescriptor": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["ITEM", "ITEM_TAG"], "subfields": {} },
+      "minItems": 0, "maxItems": 2
+    },
+    "output_fluid": { "descriptor": "IngredientField", "optional": false, "acceptedTypes": ["FLUID"], "subfields": { "amount": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "1000", "min": 1, "max": 2147483647 } } },
+    "energy": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": false, "defaultValue": "5000", "min": 1, "max": 2147483647 }
+  }
+}

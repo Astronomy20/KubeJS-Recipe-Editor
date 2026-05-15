@@ -1,0 +1,15 @@
+{
+  "_meta": {
+    "type": "extendedcrafting:ultimate_singularity",
+    "source": "bundled",
+    "mod_version_target": "1.21 branch (BlakeBr0/ExtendedCrafting)",
+    "engine_version": "1.0",
+    "_note": "This recipe is stateless — no configurable fields. Ingredients are loaded dynamically from SingularityRegistry at runtime (max 81). Output is always the Ultimate Singularity item. JSON codec has no data fields."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "extendedcrafting:ultimate_singularity"
+    }
+  }
+}

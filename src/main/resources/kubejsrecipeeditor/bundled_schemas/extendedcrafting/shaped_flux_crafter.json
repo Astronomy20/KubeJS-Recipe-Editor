@@ -1,0 +1,67 @@
+{
+  "_meta": {
+    "type": "extendedcrafting:shaped_flux_crafter",
+    "source": "bundled",
+    "mod_version_target": "1.21 branch (BlakeBr0/ExtendedCrafting)",
+    "engine_version": "1.0",
+    "_note": "power_required = total RF needed. power_rate = RF/t consumed. power_rate default from ModConfigs.FLUX_CRAFTER_POWER_RATE."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "extendedcrafting:shaped_flux_crafter"
+    },
+    "pattern": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "minItems": 1,
+      "maxItems": 3,
+      "elementDescriptor": {
+        "descriptor": "ScalarField",
+        "scalarType": "FREE_STRING",
+        "optional": false
+      }
+    },
+    "key": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "*": {
+          "descriptor": "IngredientField",
+          "optional": false,
+          "acceptedTypes": ["ITEM", "ITEM_TAG"]
+        }
+      }
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "power_required": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0,
+      "max": 2147483647
+    },
+    "power_rate": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "config:flux_crafter_power_rate",
+      "min": 0,
+      "max": 2147483647
+    }
+  }
+}

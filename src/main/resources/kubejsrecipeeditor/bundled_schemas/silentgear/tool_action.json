@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "type": "silentgear:tool_action",
+    "source": "bundled",
+    "mod_version_target": "1.21.1 branch (SilentChaos512/Silent-Gear)",
+    "engine_version": "1.0",
+    "_note": "Applies a tool action (e.g. stripping, tilling) to an ingredient. damage_to_tool must be non-negative. sound uses SoundPlayback codec (event + optional volume/pitch)."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "silentgear:tool_action"
+    },
+    "tool": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "ingredient": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "damage_to_tool": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": false,
+      "min": 0
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    },
+    "sound": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "event": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "volume": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": true,
+          "defaultValue": "1.0",
+          "min": 0.0
+        },
+        "pitch": {
+          "descriptor": "ScalarField",
+          "scalarType": "FLOAT",
+          "optional": true,
+          "defaultValue": "1.0",
+          "min": 0.0
+        }
+      }
+    }
+  }
+}

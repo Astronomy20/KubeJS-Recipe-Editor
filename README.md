@@ -71,3 +71,13 @@ The cache is automatically invalidated when:
 - The installed mod list changes (any mod added, removed, or updated)
 
 To force manual regeneration: run the command `/kre regenerate_cache`.
+
+---
+
+## Adding support for new recipe types
+
+To add or improve GUI support for a recipe type (slot colours, optional fields,
+enum values, fluid/chemical inputs), write a **bundled schema** JSON file.
+
+See **[docs/BUNDLED_SCHEMA_GUIDE.md](RECIPE_SCHEMA_GUIDE.md)** for the full format
+reference and worked examples covering Create, Mekanism, AE2, Farmers Delight, and more.

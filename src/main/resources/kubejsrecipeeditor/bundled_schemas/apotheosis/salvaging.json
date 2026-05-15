@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "type": "apotheosis:salvaging",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0"
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "apotheosis:salvaging" },
+    "input": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "outputs": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "stack": {
+            "descriptor": "IngredientField",
+            "optional": false,
+            "acceptedTypes": ["ITEM"]
+          },
+          "min_count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "defaultValue": "1",
+            "min": 0,
+            "max": 99
+          },
+          "max_count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "defaultValue": "1",
+            "min": 1,
+            "max": 99
+          }
+        }
+      }
+    }
+  }
+}

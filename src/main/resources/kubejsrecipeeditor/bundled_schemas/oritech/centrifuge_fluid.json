@@ -1,0 +1,90 @@
+{
+  "_meta": {
+    "type": "oritech:centrifuge_fluid",
+    "source": "bundled",
+    "mod_version_target": "1.21",
+    "engine_version": "1.0",
+    "_note": "Fluid centrifuge variant - takes fluid input and produces fluid/item outputs. Uses the shared OritechRecipe codec."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "oritech:centrifuge_fluid"
+    },
+    "time": {
+      "descriptor": "ScalarField",
+      "scalarType": "INTEGER",
+      "optional": true,
+      "defaultValue": "60",
+      "min": 1
+    },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"]
+      }
+    },
+    "results": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM"],
+        "subfields": {
+          "count": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": true,
+            "defaultValue": "1",
+            "min": 1
+          }
+        }
+      }
+    },
+    "fluidInput": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "fluid": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "amount": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1000",
+          "min": 1
+        }
+      }
+    },
+    "fluidOutputs": {
+      "descriptor": "ArrayField",
+      "optional": true,
+      "elementDescriptor": {
+        "descriptor": "ObjectField",
+        "optional": false,
+        "collapsible": true,
+        "children": {
+          "fluid": {
+            "descriptor": "ScalarField",
+            "scalarType": "FREE_STRING",
+            "optional": false
+          },
+          "amount": {
+            "descriptor": "ScalarField",
+            "scalarType": "INTEGER",
+            "optional": false,
+            "min": 1
+          }
+        }
+      }
+    }
+  }
+}

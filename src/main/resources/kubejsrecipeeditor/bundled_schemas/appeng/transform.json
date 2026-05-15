@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "type": "appeng:transform",
+    "source": "bundled",
+    "mod_version_target": "1.21.1",
+    "engine_version": "1.0",
+    "_note": "Items submerged in a specific fluid transform into the result. circumstance defaults to water tag if omitted."
+  },
+  "fields": {
+    "type": { "descriptor": "ConstantField", "constantValue": "appeng:transform" },
+    "ingredients": {
+      "descriptor": "ArrayField",
+      "optional": false,
+      "elementDescriptor": {
+        "descriptor": "IngredientField",
+        "optional": false,
+        "acceptedTypes": ["ITEM", "ITEM_TAG"],
+        "subfields": {}
+      },
+      "minItems": 1,
+      "maxItems": 9
+    },
+    "result": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM"],
+      "subfields": {
+        "count": { "descriptor": "ScalarField", "scalarType": "INTEGER", "optional": true, "defaultValue": "1", "min": 1, "max": 64 }
+      }
+    },
+    "circumstance": {
+      "descriptor": "ObjectField",
+      "optional": true,
+      "collapsible": true,
+      "children": {
+        "type": {
+          "descriptor": "ScalarField", "scalarType": "ENUM_STRING",
+          "optional": false, "defaultValue": "fluid",
+          "enumValues": ["fluid", "explosion", "lightning"]
+        },
+        "fluid": {
+          "descriptor": "IngredientField",
+          "optional": true,
+          "acceptedTypes": ["FLUID"],
+          "subfields": {}
+        }
+      }
+    }
+  }
+}

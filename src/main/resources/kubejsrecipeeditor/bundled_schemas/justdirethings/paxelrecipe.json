@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "type": "justdirethings:paxelrecipe",
+    "source": "bundled",
+    "mod_version_target": "main branch (Direwolf20-MC/JustDireThings)",
+    "engine_version": "1.0",
+    "_note": "Smithing-style recipe that combines a pickaxe, axe, and shovel into a paxel multi-tool. All four fields required. result uses ItemStackTemplate codec."
+  },
+  "fields": {
+    "type": {
+      "descriptor": "ConstantField",
+      "constantValue": "justdirethings:paxelrecipe"
+    },
+    "template": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "base": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "addition": {
+      "descriptor": "IngredientField",
+      "optional": false,
+      "acceptedTypes": ["ITEM", "ITEM_TAG"]
+    },
+    "result": {
+      "descriptor": "ObjectField",
+      "optional": false,
+      "collapsible": true,
+      "children": {
+        "id": {
+          "descriptor": "ScalarField",
+          "scalarType": "FREE_STRING",
+          "optional": false
+        },
+        "count": {
+          "descriptor": "ScalarField",
+          "scalarType": "INTEGER",
+          "optional": true,
+          "defaultValue": "1",
+          "min": 1
+        }
+      }
+    }
+  }
+}
