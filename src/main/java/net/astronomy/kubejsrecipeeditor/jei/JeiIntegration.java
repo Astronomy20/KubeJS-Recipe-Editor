@@ -98,14 +98,15 @@ public class JeiIntegration implements IModPlugin {
         });
     }
 
-    /** Minimal template fallback: shows the category in KRE with JEI background/icon but no export. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    /** Minimal template fallback: shows the category in KRE but no export. */
+    @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
     private static RecipeTemplate buildMinimalTemplate(IRecipeCategory<?> category) {
+        // getBackground() is marked for removal in JEI 19.x → null (category.draw() handles bg).
+        // getIcon() is deprecated but has no replacement; suppress and keep for icon rendering.
         return new RecipeTemplate(
             (RecipeType) category.getRecipeType(),
             category.getTitle().getString(),
-            category.getBackground(),
-            category.getIcon(),
+            null, category.getIcon(),
             List.of(), null, 0, 0,
             List.of(), null, null, null);
     }
@@ -222,11 +223,11 @@ public class JeiIntegration implements IModPlugin {
                 catch (Exception ignored) {}
             }
 
+            @SuppressWarnings("deprecation")
             RecipeTemplate template = new RecipeTemplate(
                     type,
                     category.getTitle().getString(),
-                    category.getBackground(),
-                    category.getIcon(),
+                    null, category.getIcon(),   // getBackground removed; getIcon kept (no replacement)
                     slots,
                     exampleRecipe,
                     cached.minInputSlots(),
@@ -323,11 +324,11 @@ public class JeiIntegration implements IModPlugin {
         Path gameDir = Minecraft.getInstance().gameDirectory.toPath();
         RecipeTemplateCacheManager.saveEntry(gameDir, uid, newEntry, cacheMap);
 
+        @SuppressWarnings("deprecation")
         RecipeTemplate registryEntry = new RecipeTemplate(
                 type,
                 category.getTitle().getString(),
-                category.getBackground(),
-                category.getIcon(),
+                null, category.getIcon(),   // getBackground removed; getIcon kept (no replacement)
                 captured,
                 maxSlotRecipe,
                 minInput,

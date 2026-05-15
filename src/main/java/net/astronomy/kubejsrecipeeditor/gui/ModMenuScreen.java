@@ -185,6 +185,7 @@ public class ModMenuScreen extends Screen {
         renderScrollbar(g);
     }
 
+    @SuppressWarnings("deprecation") // getIcon() deprecated in JEI 19.x but has no replacement
     private void renderCategoryButton(GuiGraphics g, IRecipeCategory<?> cat, int x, int y, boolean hover) {
         int bg = hover ? 0x88AAAAAA : 0x55888888;
         g.fill(x, y, x + BUTTON_W, y + BUTTON_H, 0xFF222222);

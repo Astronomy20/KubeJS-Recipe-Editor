@@ -215,88 +215,112 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     /**
      * Prefer the live JEI category drawable (same as in-game JEI); fall back to the captured template.
      */
-    @SuppressWarnings("removal")
     private @Nullable IDrawable resolveDrawableBackground() {
-        IDrawable live = category.getBackground();
-        if (live != null) {
-            return live;
-        }
-        if (capturedLayout != null) {
-            return capturedLayout.background();
-        }
-        return null;
+        // category.getBackground() is deprecated for removal in JEI 19.x — categories now draw
+        // their full background via category.draw(). Use only the value captured at JEI init
+        // time (stored in the template); for sizing we fall back to category.getWidth/Height().
+        return (capturedLayout != null) ? capturedLayout.background() : null;
     }
 
-    @SuppressWarnings("removal")
     private @Nullable IDrawable resolveDrawableIcon() {
-        if (capturedLayout != null && capturedLayout.icon() != null) {
-            return capturedLayout.icon();
-        }
-        return category.getIcon();
+        // category.getIcon() is deprecated in JEI 19.x; use only the value captured at init time.
+        return (capturedLayout != null) ? capturedLayout.icon() : null;
     }
 
     /**
-     * Returns the effective panel width used for both imageWidth and recipeX centering.
+     * Hard upper bounds for the recipe-panel area.
      *
-     * For most categories this equals the JEI background width. However, for non-vanilla,
-     * non-crafting-grid categories where the interactive slots occupy less than 70 % of the
-     * background width, we shrink the panel to the slot bounding-box so the window does not
-     * have large wasted margins. The JEI background texture is still drawn from recipeX and
-     * may slightly overflow the window border — that is intentional and harmless.
+     * <p>In JEI 19.x, both the background IDrawable width (captured at init time) and
+     * {@code category.getWidth()} can return the <em>full JEI panel width</em> (300–640 px,
+     * adapts to the Minecraft window) for mod categories that don't set an explicit background.
+     * When those values are used for {@code imageWidth} the window fills most of the screen
+     * and {@code leftPos} collapses to near 0, placing the GUI in the bottom-left corner.
+     *
+     * <p>These caps are applied <em>unconditionally</em> — before any slot-based narrowing —
+     * so they protect against both the deprecated and the modern JEI API paths.
+     * 300 px covers the widest legitimate single-recipe panel (vanilla shaped is 162 px).
+     * 200 px covers the tallest (tall multi-slot modded recipes are ~150 px).
+     */
+    private static final int MAX_PANEL_W = 300;
+    private static final int MAX_PANEL_H = 200;
+
+    /**
+     * Returns the effective panel width used for {@code imageWidth} and {@code recipeX} centering.
+     *
+     * <ul>
+     *   <li>Reads width from the IDrawable (most accurate when available), else from
+     *       {@code category.getWidth()}.</li>
+     *   <li>Clamps to {@link #MAX_PANEL_W} regardless of source.</li>
+     *   <li>For non-vanilla categories with captured slots, further narrows to the slot
+     *       bounding-box when slots sit inside less than 70 % of the background width.</li>
+     *   <li>For categories with no captured slots (e.g. fluid-only outputs not exposed as JEI
+     *       slots), returns a compact default so the window still centres correctly.</li>
+     * </ul>
      */
     private int recipePanelBgWidth() {
         if (isCompostingCategory || isFuelCategory) return CRAFT_CELL;
         IDrawable bg = resolveDrawableBackground();
-        int fullW = (bg != null) ? bg.getWidth() : category.getWidth();
 
-        // Only apply narrowing for non-vanilla, non-crafting-grid categories that have slots.
+        // Unconditional cap: both bg.getWidth() and category.getWidth() can be the full JEI
+        // panel width for some plugins, which breaks centering.
+        int fullW = Math.min(
+                (bg != null) ? bg.getWidth() : category.getWidth(),
+                MAX_PANEL_W);
+
         ResourceLocation uid = category.getRecipeType().getUid();
         boolean isVanilla = "minecraft".equals(uid.getNamespace());
-        if (!isVanilla && !usesCraftingInputGrid()
-                && capturedLayout != null && !capturedLayout.slots().isEmpty()) {
-            int minX = capturedLayout.slots().stream()
-                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
-            int maxX = capturedLayout.slots().stream()
-                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).max().orElse(0) + CRAFT_CELL;
-            int slotSpan = maxX - minX;
-            // Narrow only when slots occupy clearly less than 70 % of the full background.
-            if (slotSpan > 0 && slotSpan < fullW * 7 / 10) {
-                // Effective width: slot span + one cell of padding on each side, but never
-                // less than 75 % of the full background (avoid over-cropping).
-                return Math.max(slotSpan + CRAFT_CELL * 2, fullW * 3 / 4);
-            }
+        if (isVanilla || usesCraftingInputGrid()) return fullW;
+
+        // No captured slots → return a sensible default rather than the (possibly huge) bg width.
+        if (capturedLayout == null || capturedLayout.slots().isEmpty()) {
+            return Math.min(fullW, CRAFT_CELL * 8); // 144 px, enough for simple 1-in/1-out
+        }
+
+        // Slot-based narrowing for non-vanilla categories where slots are small relative to bg.
+        int minX = capturedLayout.slots().stream()
+                .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).min().orElse(0);
+        int maxX = capturedLayout.slots().stream()
+                .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::x).max().orElse(0) + CRAFT_CELL;
+        int slotSpan = maxX - minX;
+        if (slotSpan > 0 && slotSpan < fullW * 7 / 10) {
+            // Keep the 75 % floor to preserve visual breathing room, but cap it so a huge
+            // background doesn't undo the MAX_PANEL_W cap via the floor calculation.
+            return Math.min(Math.max(slotSpan + CRAFT_CELL * 2, fullW * 3 / 4), MAX_PANEL_W);
         }
         return fullW;
     }
 
     /**
-     * Returns the effective panel height used for imageHeight and widget Y positioning.
+     * Returns the effective panel height used for {@code imageHeight} and widget Y positioning.
      *
-     * Mirrors the narrowing logic of {@link #recipePanelBgWidth()}: when the JEI background
-     * declares a height much larger than the vertical extent of the interactive slots (e.g.
-     * create:item_application, where all slots sit in a single row inside a tall background),
-     * we shrink the panel to the slot bounding-box. The JEI background texture is still drawn
-     * at its full declared height — transparent/empty rows below the slots overflow harmlessly
-     * into the extra-params area, which is invisible for categories that have none.
+     * <p>Mirrors {@link #recipePanelBgWidth()} in every respect: unconditional cap, compact
+     * default for no-slot categories, and slot-bounding-box narrowing on the Y axis.
+     * The JEI background texture is still drawn at its full declared height — empty rows below
+     * the slots overflow harmlessly outside the window when no extra-param rows are present.
      */
     private int recipePanelBgHeight() {
         if (isCompostingCategory || isFuelCategory) return CRAFT_CELL;
         IDrawable bg = resolveDrawableBackground();
-        int fullH = (bg != null) ? bg.getHeight() : category.getHeight();
 
-        // Mirror the width-narrowing logic for the vertical axis.
+        int fullH = Math.min(
+                (bg != null) ? bg.getHeight() : category.getHeight(),
+                MAX_PANEL_H);
+
         ResourceLocation uid = category.getRecipeType().getUid();
         boolean isVanilla = "minecraft".equals(uid.getNamespace());
-        if (!isVanilla && !usesCraftingInputGrid()
-                && capturedLayout != null && !capturedLayout.slots().isEmpty()) {
-            int minY = capturedLayout.slots().stream()
-                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
-            int maxY = capturedLayout.slots().stream()
-                    .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).max().orElse(0) + CRAFT_CELL;
-            int slotSpanY = maxY - minY;
-            if (slotSpanY > 0 && slotSpanY < fullH * 7 / 10) {
-                return Math.max(slotSpanY + CRAFT_CELL * 2, fullH * 3 / 4);
-            }
+        if (isVanilla || usesCraftingInputGrid()) return fullH;
+
+        if (capturedLayout == null || capturedLayout.slots().isEmpty()) {
+            return Math.min(fullH, CRAFT_CELL * 3); // 54 px default for slot-less categories
+        }
+
+        int minY = capturedLayout.slots().stream()
+                .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).min().orElse(0);
+        int maxY = capturedLayout.slots().stream()
+                .mapToInt(SlotCapturingLayoutBuilder.CapturedSlot::y).max().orElse(0) + CRAFT_CELL;
+        int slotSpanY = maxY - minY;
+        if (slotSpanY > 0 && slotSpanY < fullH * 7 / 10) {
+            return Math.min(Math.max(slotSpanY + CRAFT_CELL * 2, fullH * 3 / 4), MAX_PANEL_H);
         }
         return fullH;
     }
@@ -328,6 +352,22 @@ public class RecipeBuilderScreen extends AbstractContainerScreen<RecipeBuilderMe
     @Override
     protected void init() {
         super.init();
+        // Recompute centering explicitly: super.init() uses imageWidth/imageHeight set in the
+        // constructor, but those may have been computed before JEI fully populated the template
+        // registry. Recomputing here guarantees that any template data available at init() time
+        // (which is later than the constructor) is used for the final window position.
+        this.imageWidth  = Math.max(240, recipePanelBgWidth() + PADDING * 2);
+        int bgH2 = recipePanelBgHeight();
+        int extraParamCount2 = computeActiveExtraParamCount();
+        int extraRows2 = (isCompostingCategory || isFuelCategory || isBrewingCategory ? 1 : 0) + extraParamCount2;
+        int seqH2 = isSequencedAssembly()
+                ? SEQ_HEADER_H + Math.max(1, sequenceSteps.size()) * STEP_ROW_H + SEQ_ADD_BTN_H + 6
+                : 0;
+        this.imageHeight = TOP_BAR + PADDING + bgH2 + PADDING
+                + (extraRows2 > 0 ? EXTRA_FIELD_H * extraRows2 + 4 : 10) + seqH2 + BOTTOM_BAR;
+        this.leftPos = (this.width  - this.imageWidth)  / 2;
+        this.topPos  = (this.height - this.imageHeight) / 2;
+
         slots.clear();
         statusMessage  = "";
         statusColor    = 0xFFFFFF;

@@ -71,6 +71,12 @@ public class TagEditorScreen extends AbstractContainerScreen<RecipeBuilderMenu> 
     private long lastTagClickTime = 0L;
     private int  lastTagClickIdx  = -1;
 
+    // Scrollbar drag state (shared: which scrollbar is being dragged)
+    private enum DragTarget { NONE, TAG_LIST, EDIT_GRID }
+    private DragTarget scrollbarDragging    = DragTarget.NONE;
+    private int        scrollbarDragStartY  = 0;
+    private int        scrollbarDragStartOff = 0;
+
     private EditBox searchBox;
     private String statusMessage = "";
     private int    statusColor   = 0xFFFFFF;
@@ -499,6 +505,34 @@ public class TagEditorScreen extends AbstractContainerScreen<RecipeBuilderMenu> 
     public boolean mouseClicked(double mx, double my, int button) {
         int mouseX = (int) mx, mouseY = (int) my;
 
+        if (button == 0) {
+            // Tag-list scrollbar
+            if (!createMode && !editMode) {
+                int total = filteredTags.size() * ROW_H;
+                int barX  = listX + listW - 5;
+                if (total > listH && mouseX >= barX && mouseX <= barX + 4
+                        && mouseY >= listY && mouseY <= listY + listH) {
+                    scrollbarDragging    = DragTarget.TAG_LIST;
+                    scrollbarDragStartY  = mouseY;
+                    scrollbarDragStartOff = tagScrollOffset;
+                    return true;
+                }
+            }
+            // Edit-grid scrollbar
+            if (editMode) {
+                int totalRows = Math.max(1, (editItems.size() + CREATE_COLS - 1) / CREATE_COLS);
+                int gridH     = createRows * 20;
+                int barX      = leftPos + imageWidth - PAD - 5;
+                if (totalRows > createRows && mouseX >= barX && mouseX <= barX + 4
+                        && mouseY >= createSlotsY && mouseY <= createSlotsY + gridH) {
+                    scrollbarDragging    = DragTarget.EDIT_GRID;
+                    scrollbarDragStartY  = mouseY;
+                    scrollbarDragStartOff = editScrollOffset;
+                    return true;
+                }
+            }
+        }
+
         if (createMode) {
             int total = createRows * CREATE_COLS;
             for (int i = 0; i < total && i < createSlots.length; i++) {
@@ -549,6 +583,43 @@ public class TagEditorScreen extends AbstractContainerScreen<RecipeBuilderMenu> 
             }
         }
         return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (button == 0) scrollbarDragging = DragTarget.NONE;
+        return super.mouseReleased(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (button == 0 && scrollbarDragging != DragTarget.NONE) {
+            int delta = (int) my - scrollbarDragStartY;
+            if (scrollbarDragging == DragTarget.TAG_LIST) {
+                int total  = filteredTags.size() * ROW_H;
+                int barH   = Math.max(16, listH * listH / total);
+                int trackH = listH - barH;
+                if (trackH > 0) {
+                    int maxScroll = Math.max(0, total - listH);
+                    tagScrollOffset = Math.max(0, Math.min(
+                            scrollbarDragStartOff + (int) ((long) delta * maxScroll / trackH),
+                            maxScroll));
+                }
+            } else {
+                int totalRows    = Math.max(1, (editItems.size() + CREATE_COLS - 1) / CREATE_COLS);
+                int gridH        = createRows * 20;
+                int barH         = Math.max(16, gridH * createRows / totalRows);
+                int trackH       = gridH - barH;
+                int maxScrollRow = Math.max(0, totalRows - createRows);
+                if (trackH > 0) {
+                    editScrollOffset = Math.max(0, Math.min(
+                            scrollbarDragStartOff + (int) ((long) delta * maxScrollRow / trackH),
+                            maxScrollRow));
+                }
+            }
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     @Override

@@ -46,6 +46,11 @@ public class RecipeBrowserScreen extends Screen {
     private int    statusColor   = 0xFFFFFF;
     private int listY, listH;
 
+    // Scrollbar drag state
+    private boolean scrollbarDragging    = false;
+    private int     scrollbarDragStartY  = 0;
+    private int     scrollbarDragStartOff = 0;
+
     // Confirmation popup state for KubeJS recipes (null = no popup)
     private ResourceLocation pendingId = null;
 
@@ -235,6 +240,18 @@ public class RecipeBrowserScreen extends Screen {
             return handlePopupClick(mouseX, mouseY);
         }
 
+        // Start scrollbar drag
+        if (button == 0) {
+            int total = filteredRecipes.size() * ROW_H;
+            if (total > listH && mouseX >= width - 7 && mouseX <= width - 1
+                    && mouseY >= listY && mouseY <= listY + listH) {
+                scrollbarDragging     = true;
+                scrollbarDragStartY   = mouseY;
+                scrollbarDragStartOff = scrollOffset;
+                return true;
+            }
+        }
+
         int xBtnX = width - 8 - 16;
         if (mouseX >= xBtnX && mouseX < xBtnX + 14 && mouseY >= listY) {
             int idx = (mouseY - listY + scrollOffset) / ROW_H;
@@ -249,6 +266,30 @@ public class RecipeBrowserScreen extends Screen {
             }
         }
         return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (button == 0) scrollbarDragging = false;
+        return super.mouseReleased(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (button == 0 && scrollbarDragging) {
+            int total  = filteredRecipes.size() * ROW_H;
+            int barH   = Math.max(20, listH * listH / total);
+            int trackH = listH - barH;
+            if (trackH > 0) {
+                int delta     = (int) my - scrollbarDragStartY;
+                int maxScroll = total - listH;
+                scrollOffset  = Math.max(0, Math.min(
+                        scrollbarDragStartOff + (int) ((long) delta * maxScroll / trackH),
+                        maxScroll));
+            }
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     private boolean handlePopupClick(int mouseX, int mouseY) {
