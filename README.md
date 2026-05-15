@@ -18,13 +18,13 @@ Recipe builder with visual editing, tagging, and instant KubeJS export.
 7. Click **Export** to append the recipe to the output file
 
 ### Fluid slots (modded recipes)
-- Drag a **fluid bucket** from JEI onto a slot that accepts fluids (e.g. Create Mixing water input)
-- A blue **~** indicator appears to confirm fluid mode
+- Drag a **fluid** from JEI onto a slot that accepts fluids (e.g. Create Mixing water input)
+- A blue `~` indicator appears to confirm fluid mode
 - **Right-click** the fluid slot to adjust the amount in millibuckets (100 mB steps, Shift = 1000 mB)
 
 ### Tags as ingredients
 - Right-click a filled slot and select a tag from the list
-- A **#** indicator appears on the slot
+- A `#` indicator appears on the slot
 - Output slots always use the specific item (tags not allowed on output)
 
 ### Export All
@@ -37,7 +37,6 @@ A status message shows the result: `Exported N types, M recipes`.
 |----------------------------------|-----------------------------------------------|
 | Vanilla crafting, smelting, etc. | `kubejs/server_scripts/vanilla/<type>.js`     |
 | Modded recipes                   | `kubejs/server_scripts/<namespace>/<type>.js` |
-| Composting                       | `kubejs/server_scripts/composting.js`         |
 | Fuel (burn time)                 | `kubejs/startup_scripts/fuel.js`              |
 
 ## Tag Editor
@@ -51,17 +50,6 @@ Click **Tags** in the main screen to open the tag editor.
 
 Click **Browse** in the main screen to browse loaded KubeJS script files.
 Quickly locate and remove previously exported recipes.
-
-## Configuration
-
-`config/kubejsrecipeeditor-client.toml`:
-
-```toml
-# Maximum recipes sampled per category for template/parameter inference.
-# Increase if optional fields (e.g. heat_requirement for Create Mixing) are not detected.
-# A cache reset is required after changing this value.
-scan_limit = 30
-```
 
 ## Cache
 
